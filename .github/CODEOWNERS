@@ -1,7 +1,7 @@
 # Require owner to review everything
 * @AutoGitr
 
-# Explicitly protect automation
+# Explicitly protect automation and issue templates
 .github/workflows/* @AutoGitr
 .github/ISSUE_TEMPLATE/* @AutoGitr
 

@@ -3,6 +3,7 @@
 
 # Explicitly protect automation
 .github/workflows/* @AutoGitr
+.github/ISSUE_TEMPLATE/* @AutoGitr
 
 # Explicitly protect dataset entries
 data/* @AutoGitr

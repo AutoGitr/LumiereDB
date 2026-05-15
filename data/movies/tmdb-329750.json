@@ -1,0 +1,20 @@
+{
+  "media_type": "movie",
+  "title": "(Dis)Honesty: The Truth About Lies",
+  "year": 2015,
+  "external_ids": {
+    "tmdb": "329750",
+    "tvdb": "65726",
+    "imdb": "tt2630898"
+  },
+  "art": {
+    "poster_url": "https://image.tmdb.org/t/p/original/kqn5YPQySbYgum0VJzOZza8gOsq.jpg",
+    "background_url": "https://artworks.thetvdb.com/banners/movies/65726/backgrounds/65726.jpg",
+    "logo_url": ""
+  },
+  "theme": {
+    "youtube_id": ""
+  },
+  "seasons": [],
+  "episodes": []
+}

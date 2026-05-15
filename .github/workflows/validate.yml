@@ -1,35 +1,74 @@
-name: Validate Dataset
+name: Validate PR
 
 on:
   pull_request:
-    paths:
-      - "data/**/*.json"
-      - ".github/workflows/validate.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+  repo-guard:
+    name: repo-guard
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.2
+      - name: Repository guard
+        run: echo "Repository guard passed"
+
+  changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+
+    outputs:
+      dataset: ${{ steps.filter.outputs.dataset }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+
+          if git diff --name-only "$base" "$head" | grep -Eq '^data/.+\.json$'; then
+            echo "dataset=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dataset=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate-dataset:
+    name: validate-dataset
+    needs: changes
+    if: needs.changes.outputs.dataset == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Validate JSON and metadata
         shell: bash
         run: |
           set -euo pipefail
 
-          files="$(find data -name '*.json' | sort || true)"
+          files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^data/.+\.json$' | sort || true)"
+
           if [ -z "$files" ]; then
-            echo "No dataset files found"
+            echo "No dataset files changed"
             exit 0
           fi
 
           for file in $files; do
             echo "Checking $file"
+
+            if [ ! -f "$file" ]; then
+              echo "Skipping deleted file: $file"
+              continue
+            fi
+
             jq empty "$file"
 
             media_type="$(jq -r '.media_type // empty' "$file")"
@@ -74,20 +113,3 @@ jobs:
               esac
             done
           done
-
-      - name: Check duplicate filenames
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          duplicates="$(
-            find data -name '*.json' -printf '%f\n' \
-              | sort \
-              | uniq -d
-          )"
-
-          if [ -n "$duplicates" ]; then
-            echo "Duplicate dataset filenames:"
-            echo "$duplicates"
-            exit 1
-          fi

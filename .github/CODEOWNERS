@@ -1,0 +1,9 @@
+# Require owner to review everything
+* @AutoGitr
+
+# Explicitly protect automation
+.github/workflows/* @AutoGitr
+
+# Explicitly protect dataset entries
+data/* @AutoGitr
+data/**/* @AutoGitr

@@ -1,0 +1,49 @@
+name: Validate Dataset
+
+on:
+  pull_request:
+    paths:
+      - "data/**/*.json"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON and URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for file in $(find data -name '*.json' | sort); do
+            echo "Checking $file"
+            jq empty "$file"
+
+            media_type=$(jq -r '.media_type' "$file")
+            test "$media_type" = "movie" -o "$media_type" = "tv"
+
+            title=$(jq -r '.title // empty' "$file")
+            test -n "$title"
+
+            youtube_id=$(jq -r '.theme.youtube_id // empty' "$file")
+            if [ -n "$youtube_id" ]; then
+              echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
+              curl -fsSL "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtube_id}&format=json" >/dev/null
+            fi
+
+            jq -r '
+              [
+                .art.poster_url,
+                .art.background_url,
+                .art.logo_url,
+                (.seasons[]?.poster_url),
+                (.episodes[]?.thumb_url)
+              ] | .[] | select(. != null and . != "")
+            ' "$file" | while read -r url; do
+              echo "$url" | grep -Eq '^https://'
+              content_type=$(curl -fsSLI "$url" | tr -d '\r' | awk 'tolower($0) ~ /^content-type:/ {print tolower($0); exit}')
+              echo "$content_type" | grep -q 'image/'
+            done
+          done

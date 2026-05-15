@@ -1,0 +1,52 @@
+name: Contribute movie metadata
+description: Submit public art or theme links for a movie.
+title: "[Movie]: "
+labels: ["contribution", "movie"]
+
+body:
+  - type: input
+    id: item_title
+    attributes:
+      label: Title
+    validations:
+      required: true
+
+  - type: input
+    id: year
+    attributes:
+      label: Year
+
+  - type: input
+    id: tmdb_id
+    attributes:
+      label: TMDB ID
+
+  - type: input
+    id: tvdb_id
+    attributes:
+      label: TVDB ID
+
+  - type: input
+    id: imdb_id
+    attributes:
+      label: IMDb ID
+
+  - type: input
+    id: poster_url
+    attributes:
+      label: Poster URL
+
+  - type: input
+    id: background_url
+    attributes:
+      label: Background URL
+
+  - type: input
+    id: logo_url
+    attributes:
+      label: Logo URL
+
+  - type: input
+    id: youtube_id
+    attributes:
+      label: YouTube theme video ID

@@ -2,6 +2,7 @@ name: Contribute Lumiere metadata
 description: Submit public art or theme links for a movie or show.
 title: "[Contribution]: "
 labels: ["contribution"]
+
 body:
   - type: dropdown
     id: media_type
@@ -9,7 +10,7 @@ body:
       label: Media type
       options:
         - movie
-        - show
+        - tv
     validations:
       required: true
 
@@ -24,8 +25,6 @@ body:
     id: year
     attributes:
       label: Year
-    validations:
-      required: true
 
   - type: input
     id: tmdb_id
@@ -53,6 +52,11 @@ body:
       label: Background URL
 
   - type: input
+    id: logo_url
+    attributes:
+      label: Logo URL
+
+  - type: input
     id: youtube_id
     attributes:
       label: YouTube theme video ID
@@ -62,3 +66,9 @@ body:
     attributes:
       label: Season posters
       description: One per line, format season_number=url
+
+  - type: textarea
+    id: episode_thumbs
+    attributes:
+      label: Episode thumbnails
+      description: One per line, format season_numberxepisode_number=url

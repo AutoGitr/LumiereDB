@@ -1,0 +1,49 @@
+name: Publish Catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**/*.json"
+      - ".github/workflows/publish-catalog.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build catalog
+        shell: bash
+        run: |
+          mkdir -p public
+          jq -s '{
+            schema_version: 1,
+            generated_at: now | todateiso8601,
+            entries: .
+          }' $(find data -name '*.json' | sort) > public/catalog.json
+          gzip -c public/catalog.json > public/catalog.json.gz
+          echo '<!doctype html><title>LumiereDB</title><a href="./catalog.json">catalog.json</a>' > public/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -15,13 +15,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
 
       - name: Create dataset JSON from issue
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
+          REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
@@ -40,7 +41,17 @@ jobs:
               | sed 's/^_No response_$//'
           }
 
-          media_type="$(field "Media type" | head -n1)"
+          labels="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')"
+
+          if echo "$labels" | grep -qx "movie"; then
+            media_type="movie"
+          elif echo "$labels" | grep -qx "show"; then
+            media_type="tv"
+          else
+            echo "Issue must have movie or show label"
+            exit 1
+          fi
+
           title="$(field "Title" | head -n1)"
           year="$(field "Year" | head -n1)"
           tmdb_id="$(field "TMDB ID" | head -n1)"
@@ -53,17 +64,8 @@ jobs:
           season_posters="$(field "Season posters")"
           episode_thumbs="$(field "Episode thumbnails")"
 
-          if [ "$media_type" = "show" ] || [ "$media_type" = "series" ]; then
-            media_type="tv"
-          fi
-
-          if [ "$media_type" != "movie" ] && [ "$media_type" != "tv" ]; then
-            echo "Invalid media type: $media_type"
-            exit 1
-          fi
-
           if [ -z "$title" ]; then
-            echo "Missing title"
+            echo "Missing Title field"
             exit 1
           fi
 
@@ -73,6 +75,7 @@ jobs:
 
           if [ "$media_type" = "movie" ]; then
             mkdir -p data/movies
+
             if [ -n "$tmdb_id" ]; then
               target="data/movies/tmdb-${tmdb_id}.json"
             elif [ -n "$imdb_id" ]; then
@@ -83,6 +86,7 @@ jobs:
             fi
           else
             mkdir -p data/tv
+
             if [ -n "$tvdb_id" ]; then
               target="data/tv/tvdb-${tvdb_id}.json"
             elif [ -n "$tmdb_id" ]; then
@@ -96,7 +100,7 @@ jobs:
           fi
 
           if [ -f "$target" ]; then
-            gh issue comment "$ISSUE_NUMBER" --body "Dataset file already exists: \`$target\`. Please update it manually."
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Dataset file already exists: \`$target\`. Please update it manually."
             exit 1
           fi
 
@@ -106,7 +110,10 @@ jobs:
               | map(select(length > 0 and contains("=")))
               | map(
                   capture("^(?<season_number>[0-9]+)=(?<poster_url>.+)$")
-                  | { season_number: (.season_number | tonumber), poster_url }
+                  | {
+                      season_number: (.season_number | tonumber),
+                      poster_url
+                    }
                 )
             '
           )"
@@ -163,6 +170,7 @@ jobs:
           jq empty "$target"
 
           branch="dataset/issue-${ISSUE_NUMBER}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
@@ -170,10 +178,13 @@ jobs:
           git commit -m "Add dataset entry from issue #${ISSUE_NUMBER}"
           git push origin "$branch"
 
-          pr_url="$(gh pr create \
-            --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
-            --body "Created from #${ISSUE_NUMBER}. Closes #${ISSUE_NUMBER}." \
-            --base main \
-            --head "$branch")"
+          pr_url="$(
+            gh pr create \
+              --repo "$REPO" \
+              --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
+              --body "Created from #${ISSUE_NUMBER}. Closes #${ISSUE_NUMBER}." \
+              --base main \
+              --head "$branch"
+          )"
 
-          gh issue comment "$ISSUE_NUMBER" --body "Created dataset PR: $pr_url"
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Created dataset PR: $pr_url"

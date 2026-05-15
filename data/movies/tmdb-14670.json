@@ -1,0 +1,20 @@
+{
+  "media_type": "movie",
+  "title": "'Round Midnight",
+  "year": 1986,
+  "external_ids": {
+    "tmdb": "14670",
+    "tvdb": "25730",
+    "imdb": "tt0090557"
+  },
+  "art": {
+    "poster_url": "https://image.tmdb.org/t/p/original/rrrAdD19J54TXBjT0D9XBzhTZRH.jpg",
+    "background_url": "https://image.tmdb.org/t/p/original/nxxdhhcKreBWItIzN2MQohoIeCY.jpg",
+    "logo_url": ""
+  },
+  "theme": {
+    "youtube_id": ""
+  },
+  "seasons": [],
+  "episodes": []
+}

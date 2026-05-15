@@ -1,4 +1,4 @@
-name: Build Catalog
+name: Publish Catalog
 
 on:
   push:
@@ -6,45 +6,44 @@ on:
     paths:
       - "data/**/*.json"
       - ".github/workflows/publish-catalog.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
 
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Build catalog
         shell: bash
         run: |
-          set -euo pipefail
           mkdir -p public
-
-          files="$(find data -name '*.json' | sort)"
-          if [ -z "$files" ]; then
-            jq -n '{
-              schema_version: 1,
-              generated_at: now | todateiso8601,
-              entries: []
-            }' > public/catalog.json
-          else
-            jq -s '{
-              schema_version: 1,
-              generated_at: now | todateiso8601,
-              entries: .
-            }' $files > public/catalog.json
-          fi
-
+          jq -s '{
+            schema_version: 1,
+            generated_at: now | todateiso8601,
+            entries: .
+          }' $(find data -name '*.json' | sort) > public/catalog.json
           gzip -c public/catalog.json > public/catalog.json.gz
+          echo '<!doctype html><title>LumiereDB</title><a href="./catalog.json">catalog.json</a>' > public/index.html
 
-      - name: Upload catalog artifact
-        uses: actions/upload-artifact@v6
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
         with:
-          name: lumiere-catalog
-          path: |
-            public/catalog.json
-            public/catalog.json.gz
+          path: public
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

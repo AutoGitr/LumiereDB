@@ -1,0 +1,179 @@
+name: Issue to Dataset PR
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  create-pr:
+    if: github.event.label.name == 'accepted'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create dataset JSON from issue
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          body_file="$(mktemp)"
+          printf '%s' "$ISSUE_BODY" > "$body_file"
+
+          field() {
+            awk -v heading="$1" '
+              $0 == "### " heading { capture = 1; next }
+              /^### / && capture { exit }
+              capture { print }
+            ' "$body_file" \
+              | sed '/^[[:space:]]*$/d' \
+              | sed 's/^_No response_$//'
+          }
+
+          media_type="$(field "Media type" | head -n1)"
+          title="$(field "Title" | head -n1)"
+          year="$(field "Year" | head -n1)"
+          tmdb_id="$(field "TMDB ID" | head -n1)"
+          tvdb_id="$(field "TVDB ID" | head -n1)"
+          imdb_id="$(field "IMDb ID" | head -n1)"
+          poster_url="$(field "Poster URL" | head -n1)"
+          background_url="$(field "Background URL" | head -n1)"
+          logo_url="$(field "Logo URL" | head -n1)"
+          youtube_id="$(field "YouTube theme video ID" | head -n1)"
+          season_posters="$(field "Season posters")"
+          episode_thumbs="$(field "Episode thumbnails")"
+
+          if [ "$media_type" = "show" ] || [ "$media_type" = "series" ]; then
+            media_type="tv"
+          fi
+
+          if [ "$media_type" != "movie" ] && [ "$media_type" != "tv" ]; then
+            echo "Invalid media type: $media_type"
+            exit 1
+          fi
+
+          if [ -z "$title" ]; then
+            echo "Missing title"
+            exit 1
+          fi
+
+          if [ -n "$youtube_id" ]; then
+            echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
+          fi
+
+          if [ "$media_type" = "movie" ]; then
+            mkdir -p data/movies
+            if [ -n "$tmdb_id" ]; then
+              target="data/movies/tmdb-${tmdb_id}.json"
+            elif [ -n "$imdb_id" ]; then
+              target="data/movies/imdb-${imdb_id}.json"
+            else
+              echo "Movie needs TMDB ID or IMDb ID"
+              exit 1
+            fi
+          else
+            mkdir -p data/tv
+            if [ -n "$tvdb_id" ]; then
+              target="data/tv/tvdb-${tvdb_id}.json"
+            elif [ -n "$tmdb_id" ]; then
+              target="data/tv/tmdb-${tmdb_id}.json"
+            elif [ -n "$imdb_id" ]; then
+              target="data/tv/imdb-${imdb_id}.json"
+            else
+              echo "TV item needs TVDB, TMDB, or IMDb ID"
+              exit 1
+            fi
+          fi
+
+          if [ -f "$target" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body "Dataset file already exists: \`$target\`. Please update it manually."
+            exit 1
+          fi
+
+          seasons_json="$(
+            printf '%s\n' "$season_posters" | jq -R -s '
+              split("\n")
+              | map(select(length > 0 and contains("=")))
+              | map(
+                  capture("^(?<season_number>[0-9]+)=(?<poster_url>.+)$")
+                  | { season_number: (.season_number | tonumber), poster_url }
+                )
+            '
+          )"
+
+          episodes_json="$(
+            printf '%s\n' "$episode_thumbs" | jq -R -s '
+              split("\n")
+              | map(select(length > 0 and contains("=")))
+              | map(
+                  capture("^(?<season_number>[0-9]+)x(?<episode_number>[0-9]+)=(?<thumb_url>.+)$")
+                  | {
+                      season_number: (.season_number | tonumber),
+                      episode_number: (.episode_number | tonumber),
+                      thumb_url
+                    }
+                )
+            '
+          )"
+
+          jq -n \
+            --arg media_type "$media_type" \
+            --arg title "$title" \
+            --arg year "$year" \
+            --arg tmdb "$tmdb_id" \
+            --arg tvdb "$tvdb_id" \
+            --arg imdb "$imdb_id" \
+            --arg poster "$poster_url" \
+            --arg background "$background_url" \
+            --arg logo "$logo_url" \
+            --arg youtube "$youtube_id" \
+            --argjson seasons "$seasons_json" \
+            --argjson episodes "$episodes_json" \
+            '{
+              media_type: $media_type,
+              title: $title,
+              year: (if $year == "" then null else ($year | tonumber) end),
+              external_ids: {
+                tmdb: (if $tmdb == "" then null else $tmdb end),
+                tvdb: (if $tvdb == "" then null else $tvdb end),
+                imdb: (if $imdb == "" then null else $imdb end)
+              },
+              art: {
+                poster_url: $poster,
+                background_url: $background,
+                logo_url: $logo
+              },
+              theme: {
+                youtube_id: $youtube
+              },
+              seasons: $seasons,
+              episodes: $episodes
+            }' > "$target"
+
+          jq empty "$target"
+
+          branch="dataset/issue-${ISSUE_NUMBER}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$target"
+          git commit -m "Add dataset entry from issue #${ISSUE_NUMBER}"
+          git push origin "$branch"
+
+          pr_url="$(gh pr create \
+            --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
+            --body "Created from #${ISSUE_NUMBER}. Closes #${ISSUE_NUMBER}." \
+            --base main \
+            --head "$branch")"
+
+          gh issue comment "$ISSUE_NUMBER" --body "Created dataset PR: $pr_url"

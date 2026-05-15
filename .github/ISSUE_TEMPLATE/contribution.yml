@@ -15,7 +15,7 @@ body:
       required: true
 
   - type: input
-    id: title
+    id: item_title
     attributes:
       label: Title
     validations:

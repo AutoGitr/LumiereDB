@@ -4,24 +4,27 @@ on:
   issues:
     types: [labeled]
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+permissions: {}
 
 jobs:
   create-pr:
     if: github.event.label.name == 'accepted'
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: true
 
       - name: Create dataset JSON from issue
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -41,6 +44,10 @@ jobs:
               | sed 's/^_No response_$//'
           }
 
+          clean_single_line() {
+            printf '%s' "$1" | tr -d '\r' | head -n1
+          }
+
           labels="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')"
 
           if echo "$labels" | grep -qx "movie"; then
@@ -52,15 +59,15 @@ jobs:
             exit 1
           fi
 
-          title="$(field "Title" | head -n1)"
-          year="$(field "Year" | head -n1)"
-          tmdb_id="$(field "TMDB ID" | head -n1)"
-          tvdb_id="$(field "TVDB ID" | head -n1)"
-          imdb_id="$(field "IMDb ID" | head -n1)"
-          poster_url="$(field "Poster URL" | head -n1)"
-          background_url="$(field "Background URL" | head -n1)"
-          logo_url="$(field "Logo URL" | head -n1)"
-          youtube_id="$(field "YouTube theme video ID" | head -n1)"
+          title="$(clean_single_line "$(field "Title")")"
+          year="$(clean_single_line "$(field "Year")")"
+          tmdb_id="$(clean_single_line "$(field "TMDB ID")")"
+          tvdb_id="$(clean_single_line "$(field "TVDB ID")")"
+          imdb_id="$(clean_single_line "$(field "IMDb ID")")"
+          poster_url="$(clean_single_line "$(field "Poster URL")")"
+          background_url="$(clean_single_line "$(field "Background URL")")"
+          logo_url="$(clean_single_line "$(field "Logo URL")")"
+          youtube_id="$(clean_single_line "$(field "YouTube theme video ID")")"
           season_posters="$(field "Season posters")"
           episode_thumbs="$(field "Episode thumbnails")"
 
@@ -69,9 +76,68 @@ jobs:
             exit 1
           fi
 
+          if [ ${#title} -gt 200 ]; then
+            echo "Title is too long"
+            exit 1
+          fi
+
+          if [ -n "$year" ]; then
+            echo "$year" | grep -Eq '^[0-9]{4}$'
+          fi
+
+          if [ -n "$tmdb_id" ]; then
+            echo "$tmdb_id" | grep -Eq '^[0-9]+$'
+          fi
+
+          if [ -n "$tvdb_id" ]; then
+            echo "$tvdb_id" | grep -Eq '^[0-9]+$'
+          fi
+
+          if [ -n "$imdb_id" ]; then
+            echo "$imdb_id" | grep -Eq '^tt[0-9]+$'
+          fi
+
           if [ -n "$youtube_id" ]; then
             echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
           fi
+
+          validate_url() {
+            url="$1"
+            if [ -z "$url" ]; then
+              return 0
+            fi
+            echo "$url" | grep -Eq '^https://'
+            case "$url" in
+              *githubusercontent.com*|*discordapp.com*|*discord.com*|*localhost*|*127.0.0.1*|*0.0.0.0*)
+                echo "Rejected unstable or unsafe URL: $url"
+                exit 1
+                ;;
+            esac
+          }
+
+          validate_url "$poster_url"
+          validate_url "$background_url"
+          validate_url "$logo_url"
+
+          validate_mapping_lines() {
+            name="$1"
+            value="$2"
+            pattern="$3"
+
+            if [ -z "$value" ]; then
+              return 0
+            fi
+
+            printf '%s\n' "$value" | while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              echo "$line" | grep -Eq "$pattern"
+              url="${line#*=}"
+              validate_url "$url"
+            done
+          }
+
+          validate_mapping_lines "Season posters" "$season_posters" '^[0-9]+=https://.+$'
+          validate_mapping_lines "Episode thumbnails" "$episode_thumbs" '^[0-9]+x[0-9]+=https://.+$'
 
           if [ "$media_type" = "movie" ]; then
             mkdir -p data/movies

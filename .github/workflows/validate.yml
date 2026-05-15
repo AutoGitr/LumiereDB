@@ -13,103 +13,89 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Repository guard
-        run: echo "Repository guard passed"
+      - uses: actions/checkout@v6.0.2
 
-  changes:
-    name: detect-changes
-    runs-on: ubuntu-latest
-
-    outputs:
-      dataset: ${{ steps.filter.outputs.dataset }}
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - id: filter
+      - name: Validate repository changes
         shell: bash
         run: |
           set -euo pipefail
 
-          base="${{ github.event.pull_request.base.sha }}"
-          head="${{ github.event.pull_request.head.sha }}"
-
-          if git diff --name-only "$base" "$head" | grep -Eq '^data/.+\.json$'; then
-            echo "dataset=true" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
           else
-            echo "dataset=false" >> "$GITHUB_OUTPUT"
+            changed_files="$(find data -name '*.json' | sort || true)"
           fi
 
-  validate-dataset:
-    name: validate-dataset
-    needs: changes
-    if: needs.changes.outputs.dataset == 'true'
-    runs-on: ubuntu-latest
+          dataset_files="$(printf '%s\n' "$changed_files" | grep -E '^data/.+\.json$' | sort || true)"
 
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Validate JSON and metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | grep -E '^data/.+\.json$' | sort || true)"
-
-          if [ -z "$files" ]; then
+          if [ -z "$dataset_files" ]; then
             echo "No dataset files changed"
-            exit 0
+          else
+            echo "Dataset files changed:"
+            echo "$dataset_files"
+
+            for file in $dataset_files; do
+              echo "Checking $file"
+
+              if [ ! -f "$file" ]; then
+                echo "Skipping deleted file: $file"
+                continue
+              fi
+
+              jq empty "$file"
+
+              media_type="$(jq -r '.media_type // empty' "$file")"
+              test "$media_type" = "movie" -o "$media_type" = "tv"
+
+              title="$(jq -r '.title // empty' "$file")"
+              test -n "$title"
+
+              year="$(jq -r '.year // empty' "$file")"
+              if [ -n "$year" ]; then
+                echo "$year" | grep -Eq '^[0-9]{4}$'
+              fi
+
+              tmdb="$(jq -r '.external_ids.tmdb // empty' "$file")"
+              tvdb="$(jq -r '.external_ids.tvdb // empty' "$file")"
+              imdb="$(jq -r '.external_ids.imdb // empty' "$file")"
+
+              if [ -n "$tmdb" ]; then echo "$tmdb" | grep -Eq '^[0-9]+$'; fi
+              if [ -n "$tvdb" ]; then echo "$tvdb" | grep -Eq '^[0-9]+$'; fi
+              if [ -n "$imdb" ]; then echo "$imdb" | grep -Eq '^tt[0-9]+$'; fi
+
+              youtube_id="$(jq -r '.theme.youtube_id // empty' "$file")"
+              if [ -n "$youtube_id" ]; then
+                echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
+              fi
+
+              jq -r '
+                [
+                  .art.poster_url,
+                  .art.background_url,
+                  .art.logo_url,
+                  (.seasons[]?.poster_url),
+                  (.episodes[]?.thumb_url)
+                ] | .[] | select(. != null and . != "")
+              ' "$file" | while IFS= read -r url; do
+                echo "$url" | grep -Eq '^https://'
+                case "$url" in
+                  *githubusercontent.com*|*discordapp.com*|*discord.com*|*localhost*|*127.0.0.1*|*0.0.0.0*)
+                    echo "Rejected unstable or unsafe URL: $url"
+                    exit 1
+                    ;;
+                esac
+              done
+            done
           fi
 
-          for file in $files; do
-            echo "Checking $file"
+          duplicate_filenames="$(
+            find data -name '*.json' -printf '%f\n' \
+              | sort \
+              | uniq -d
+          )"
 
-            if [ ! -f "$file" ]; then
-              echo "Skipping deleted file: $file"
-              continue
-            fi
-
-            jq empty "$file"
-
-            media_type="$(jq -r '.media_type // empty' "$file")"
-            test "$media_type" = "movie" -o "$media_type" = "tv"
-
-            title="$(jq -r '.title // empty' "$file")"
-            test -n "$title"
-
-            year="$(jq -r '.year // empty' "$file")"
-            if [ -n "$year" ]; then
-              echo "$year" | grep -Eq '^[0-9]{4}$'
-            fi
-
-            tmdb="$(jq -r '.external_ids.tmdb // empty' "$file")"
-            tvdb="$(jq -r '.external_ids.tvdb // empty' "$file")"
-            imdb="$(jq -r '.external_ids.imdb // empty' "$file")"
-
-            if [ -n "$tmdb" ]; then echo "$tmdb" | grep -Eq '^[0-9]+$'; fi
-            if [ -n "$tvdb" ]; then echo "$tvdb" | grep -Eq '^[0-9]+$'; fi
-            if [ -n "$imdb" ]; then echo "$imdb" | grep -Eq '^tt[0-9]+$'; fi
-
-            youtube_id="$(jq -r '.theme.youtube_id // empty' "$file")"
-            if [ -n "$youtube_id" ]; then
-              echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
-            fi
-
-            jq -r '
-              [
-                .art.poster_url,
-                .art.background_url,
-                .art.logo_url,
-                (.seasons[]?.poster_url),
-                (.episodes[]?.thumb_url)
-              ] | .[] | select(. != null and . != "")
-            ' "$file" | while IFS= read -r url; do
-              echo "$url" | grep -Eq '^https://'
-              case "$url" in
-                *githubusercontent.com*|*discordapp.com*|*discord.com*|*localhost*|*127.0.0.1*|*0.0.0.0*)
-                  echo "Rejected unstable or unsafe URL: $url"
-                  exit 1
-                  ;;
-              esac
-            done
-          done
+          if [ -n "$duplicate_filenames" ]; then
+            echo "Duplicate dataset filenames:"
+            echo "$duplicate_filenames"
+            exit 1
+          fi

@@ -53,11 +53,13 @@ jq -e '
   def optional_imdb: . == null or (type == "string" and test("^tt[0-9]+$"));
   def optional_youtube: . == null or (type == "string" and test("^[A-Za-z0-9_-]{11}$"));
   def integer: type == "number" and . == floor;
+  def nonnegative_integer: integer and . >= 0;
+  def year_value: . == null or (integer and . >= 1000 and . <= 9999);
 
   (keys_unsorted | sort) == ["art","episodes","external_ids","media_type","seasons","theme","title","year"] and
   (.media_type == "movie" or .media_type == "tv") and
   (.title | type == "string" and length > 0 and length <= 200) and
-  (.year == null or (.year | integer and . >= 1000 and . <= 9999)) and
+  (.year | year_value) and
   (.external_ids | type == "object") and
   (.external_ids | (keys_unsorted | sort) == ["imdb","tmdb","tvdb"]) and
   (.external_ids.tmdb | optional_digits) and
@@ -72,9 +74,9 @@ jq -e '
   (.theme | (keys_unsorted | sort) == ["youtube_id"]) and
   (.theme.youtube_id | optional_youtube) and
   (.seasons | type == "array") and
-  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | integer and . >= 0) and (.poster_url | type == "string" and length > 0)) and
+  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0)) and
   (.episodes | type == "array") and
-  all(.episodes[]; type == "object" and (keys_unsorted | sort) == ["episode_number","season_number","thumb_url"] and (.season_number | integer and . >= 0) and (.episode_number | integer and . >= 0) and (.thumb_url | type == "string" and length > 0))
+  all(.episodes[]; type == "object" and (keys_unsorted | sort) == ["episode_number","season_number","thumb_url"] and (.season_number | nonnegative_integer) and (.episode_number | nonnegative_integer) and (.thumb_url | type == "string" and length > 0))
 ' "$file" >/dev/null || fail "entry does not match schema shape"
 
 media_type="$(jq -r '.media_type' "$file")"

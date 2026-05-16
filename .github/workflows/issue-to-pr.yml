@@ -31,6 +31,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          fail() {
+            message="$1"
+            echo "$message" >&2
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Could not create dataset PR: ${message}"
+            exit 1
+          }
+
           body_file="$(mktemp)"
           printf '%s' "$ISSUE_BODY" > "$body_file"
 
@@ -55,8 +62,7 @@ jobs:
           elif echo "$labels" | grep -qx "show"; then
             media_type="tv"
           else
-            echo "Issue must have movie or show label"
-            exit 1
+            fail "Issue must have a movie or show label."
           fi
 
           title="$(clean_single_line "$(field "Title")")"
@@ -71,73 +77,7 @@ jobs:
           season_posters="$(field "Season posters")"
           episode_thumbs="$(field "Episode thumbnails")"
 
-          if [ -z "$title" ]; then
-            echo "Missing Title field"
-            exit 1
-          fi
-
-          if [ ${#title} -gt 200 ]; then
-            echo "Title is too long"
-            exit 1
-          fi
-
-          if [ -n "$year" ]; then
-            echo "$year" | grep -Eq '^[0-9]{4}$'
-          fi
-
-          if [ -n "$tmdb_id" ]; then
-            echo "$tmdb_id" | grep -Eq '^[0-9]+$'
-          fi
-
-          if [ -n "$tvdb_id" ]; then
-            echo "$tvdb_id" | grep -Eq '^[0-9]+$'
-          fi
-
-          if [ -n "$imdb_id" ]; then
-            echo "$imdb_id" | grep -Eq '^tt[0-9]+$'
-          fi
-
-          if [ -n "$youtube_id" ]; then
-            echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
-          fi
-
-          validate_url() {
-            url="$1"
-            if [ -z "$url" ]; then
-              return 0
-            fi
-            echo "$url" | grep -Eq '^https://'
-            case "$url" in
-              *githubusercontent.com*|*discordapp.com*|*discord.com*|*localhost*|*127.0.0.1*|*0.0.0.0*)
-                echo "Rejected unstable or unsafe URL: $url"
-                exit 1
-                ;;
-            esac
-          }
-
-          validate_url "$poster_url"
-          validate_url "$background_url"
-          validate_url "$logo_url"
-
-          validate_mapping_lines() {
-            name="$1"
-            value="$2"
-            pattern="$3"
-
-            if [ -z "$value" ]; then
-              return 0
-            fi
-
-            printf '%s\n' "$value" | while IFS= read -r line; do
-              [ -z "$line" ] && continue
-              echo "$line" | grep -Eq "$pattern"
-              url="${line#*=}"
-              validate_url "$url"
-            done
-          }
-
-          validate_mapping_lines "Season posters" "$season_posters" '^[0-9]+=https://.+$'
-          validate_mapping_lines "Episode thumbnails" "$episode_thumbs" '^[0-9]+x[0-9]+=https://.+$'
+          [ -n "$title" ] || fail "Missing Title field."
 
           if [ "$media_type" = "movie" ]; then
             mkdir -p data/movies
@@ -147,8 +87,7 @@ jobs:
             elif [ -n "$imdb_id" ]; then
               target="data/movies/imdb-${imdb_id}.json"
             else
-              echo "Movie needs TMDB ID or IMDb ID"
-              exit 1
+              fail "Movie submissions need a TMDB ID or IMDb ID."
             fi
           else
             mkdir -p data/tv
@@ -160,14 +99,12 @@ jobs:
             elif [ -n "$imdb_id" ]; then
               target="data/tv/imdb-${imdb_id}.json"
             else
-              echo "TV item needs TVDB, TMDB, or IMDb ID"
-              exit 1
+              fail "TV submissions need a TVDB, TMDB, or IMDb ID."
             fi
           fi
 
           if [ -f "$target" ]; then
-            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Dataset file already exists: \`$target\`. Please update it manually."
-            exit 1
+            fail "Dataset file already exists: \`${target}\`. Please update it manually."
           fi
 
           seasons_json="$(
@@ -182,7 +119,7 @@ jobs:
                     }
                 )
             '
-          )"
+          )" || fail "Season posters must use season_number=url lines."
 
           episodes_json="$(
             printf '%s\n' "$episode_thumbs" | jq -R -s '
@@ -197,7 +134,7 @@ jobs:
                     }
                 )
             '
-          )"
+          )" || fail "Episode thumbnails must use season_numberxepisode_number=url lines."
 
           jq -n \
             --arg media_type "$media_type" \
@@ -222,18 +159,21 @@ jobs:
                 imdb: (if $imdb == "" then null else $imdb end)
               },
               art: {
-                poster_url: $poster,
-                background_url: $background,
-                logo_url: $logo
+                poster_url: (if $poster == "" then null else $poster end),
+                background_url: (if $background == "" then null else $background end),
+                logo_url: (if $logo == "" then null else $logo end)
               },
               theme: {
-                youtube_id: $youtube
+                youtube_id: (if $youtube == "" then null else $youtube end)
               },
               seasons: $seasons,
               episodes: $episodes
             }' > "$target"
 
-          jq empty "$target"
+          if ! validation_output="$(bash .github/scripts/validate-entry.sh "$target" 2>&1)"; then
+            rm -f "$target"
+            fail "$validation_output"
+          fi
 
           branch="dataset/issue-${ISSUE_NUMBER}"
 

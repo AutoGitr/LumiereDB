@@ -11,8 +11,7 @@
     "external_ids",
     "art",
     "theme",
-    "seasons",
-    "episodes"
+    "seasons"
   ],
   "properties": {
     "media_type": {
@@ -78,15 +77,12 @@
     "art": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["poster_url", "background_url", "logo_url"],
+      "required": ["poster_url", "background_url"],
       "properties": {
         "poster_url": {
           "type": ["string", "null"]
         },
         "background_url": {
-          "type": ["string", "null"]
-        },
-        "logo_url": {
           "type": ["string", "null"]
         }
       }
@@ -121,28 +117,6 @@
             "minimum": 0
           },
           "poster_url": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "episodes": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["season_number", "episode_number", "thumb_url"],
-        "properties": {
-          "season_number": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "episode_number": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "thumb_url": {
             "type": "string",
             "minLength": 1
           }

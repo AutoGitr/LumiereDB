@@ -2,6 +2,9 @@ name: Validate PR
 
 on:
   pull_request:
+    branches:
+      - main
+      - database
   workflow_dispatch:
 
 permissions:

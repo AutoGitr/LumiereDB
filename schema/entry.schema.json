@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/lumieredb/entry.schema.json",
+  "$id": "https://raw.githubusercontent.com/AutoGitr/LumiereDB/main/schema/entry.schema.json",
   "title": "LumiereDB entry",
   "type": "object",
   "additionalProperties": false,

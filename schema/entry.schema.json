@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/lumieredb/entry.schema.json",
+  "title": "LumiereDB entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "media_type",
+    "title",
+    "year",
+    "external_ids",
+    "art",
+    "theme",
+    "seasons",
+    "episodes"
+  ],
+  "properties": {
+    "media_type": {
+      "enum": ["movie", "tv"]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "year": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 9999
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "external_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tmdb", "tvdb", "imdb"],
+      "properties": {
+        "tmdb": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tvdb": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "imdb": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^tt[0-9]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "art": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["poster_url", "background_url", "logo_url"],
+      "properties": {
+        "poster_url": {
+          "type": ["string", "null"]
+        },
+        "background_url": {
+          "type": ["string", "null"]
+        },
+        "logo_url": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["youtube_id"],
+      "properties": {
+        "youtube_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{11}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "seasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["season_number", "poster_url"],
+        "properties": {
+          "season_number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "poster_url": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "episodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["season_number", "episode_number", "thumb_url"],
+        "properties": {
+          "season_number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "episode_number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "thumb_url": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

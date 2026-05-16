@@ -10,10 +10,10 @@
   "art": {
     "poster_url": "https://image.tmdb.org/t/p/original/ubwVtWy86MmIEGpOOlzSdyUB4dn.jpg",
     "background_url": "https://image.tmdb.org/t/p/original/jPiYqgBEquMh4RSIut1KR8Ey6zu.jpg",
-    "logo_url": ""
+    "logo_url": null
   },
   "theme": {
-    "youtube_id": ""
+    "youtube_id": null
   },
   "seasons": [
     {

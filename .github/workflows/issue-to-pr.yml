@@ -1,4 +1,4 @@
-name: Issue to Database Branch
+name: Issue to Pull Request
 
 on:
   issues:
@@ -7,37 +7,31 @@ on:
 permissions: {}
 
 concurrency:
-  group: database-branch
+  group: issue-to-pr-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  update-database:
+  create-dataset-pr:
     if: github.event.label.name == 'accepted'
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
       issues: write
+      pull-requests: write
 
     steps:
-      - name: Checkout workflow source
+      - name: Checkout repository
         uses: actions/checkout@v6.0.2
         with:
           ref: main
-          path: source
-          persist-credentials: false
-
-      - name: Checkout database branch
-        uses: actions/checkout@v6.0.2
-        with:
-          ref: database
-          path: database
           persist-credentials: true
 
-      - name: Add dataset JSON from issue
+      - name: Create dataset PR from issue
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -47,7 +41,7 @@ jobs:
           fail() {
             message="$1"
             echo "$message" >&2
-            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Could not update database branch: ${message}"
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Could not create dataset pull request: ${message}"
             exit 1
           }
 
@@ -74,8 +68,12 @@ jobs:
             media_type="movie"
           elif echo "$labels" | grep -qx "show"; then
             media_type="tv"
+          elif printf '%s' "$ISSUE_TITLE" | grep -q '^\[Movie\]:'; then
+            media_type="movie"
+          elif printf '%s' "$ISSUE_TITLE" | grep -q '^\[Show\]:'; then
+            media_type="tv"
           else
-            fail "Issue must have a movie or show label."
+            fail "Issue must use the movie or show issue form."
           fi
 
           title="$(clean_single_line "$(field "Title")")"
@@ -91,8 +89,6 @@ jobs:
           episode_thumbs="$(field "Episode thumbnails")"
 
           [ -n "$title" ] || fail "Missing Title field."
-
-          cd database
 
           if [ "$media_type" = "movie" ]; then
             mkdir -p data/movies
@@ -119,7 +115,7 @@ jobs:
           fi
 
           if [ -f "$target" ]; then
-            fail "Dataset file already exists on database branch: \`${target}\`. Please update it manually."
+            fail "Dataset file already exists on main: \`${target}\`. Please update it manually."
           fi
 
           seasons_json="$(
@@ -188,20 +184,37 @@ jobs:
             fail "Submitted fields could not be converted into dataset JSON. Check numeric year and mapping fields."
           fi
 
-          if ! validation_output="$(bash ../source/.github/scripts/validate-entry.sh "$target" ../source/schema/entry.schema.json 2>&1)"; then
+          if ! validation_output="$(bash .github/scripts/validate-entry.sh "$target" schema/entry.schema.json 2>&1)"; then
             rm -f "$target"
             fail "$validation_output"
           fi
 
+          branch="contribution/issue-${ISSUE_NUMBER}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            fail "Contribution branch already exists: \`${branch}\`. Please review the existing branch or pull request."
+          fi
+
+          git switch -c "$branch"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "$target"
 
           if git diff --cached --quiet; then
-            fail "No database changes were produced."
+            fail "No dataset changes were produced."
           fi
 
           git commit -m "Add dataset entry from issue #${ISSUE_NUMBER}"
-          git push origin database
+          git push origin "$branch"
 
-          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Added dataset entry to the \`database\` branch: \`${target}\`."
+          pr_url="$(
+            gh pr create \
+              --repo "$REPO" \
+              --base main \
+              --head "$branch" \
+              --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
+              --body "Closes #${ISSUE_NUMBER}
+
+Adds \`${target}\` from the accepted issue submission."
+          )"
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Created pull request for \`${target}\`: ${pr_url}"

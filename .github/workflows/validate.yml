@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - main
-      - database
   workflow_dispatch:
 
 permissions:
@@ -17,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Validate repository changes
         shell: bash

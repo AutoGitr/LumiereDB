@@ -23,7 +23,7 @@ jobs:
       - name: Checkout workflow source
         uses: actions/checkout@v6.0.2
         with:
-          ref: master
+          ref: main
           path: source
           persist-credentials: false
 

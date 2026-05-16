@@ -2,37 +2,43 @@ name: Publish Catalog
 
 on:
   push:
-    branches: [main]
+    branches: [database]
     paths:
       - "data/**/*.json"
       - ".github/workflows/publish-catalog.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: gh-pages
   cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
-      - uses: actions/checkout@v6.0.2
+      - name: Checkout database branch
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: database
+          path: database
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: gh-pages
+          path: pages
+          persist-credentials: true
 
       - name: Build catalog
         shell: bash
         run: |
           set -euo pipefail
 
+          cd database
           mkdir -p public
 
           files="$(find data -name '*.json' | sort || true)"
@@ -76,14 +82,24 @@ jobs:
           </html>
           HTML
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
+      - name: Publish to gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: public
+          find pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R database/public/. pages/
 
-      - name: Deploy GitHub Pages
-        id: deployment
+          cd pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No gh-pages changes to publish"
+            exit 0
+          fi
+
+          git commit -m "Publish catalog"
+          git push origin gh-pages
         uses: actions/deploy-pages@v5

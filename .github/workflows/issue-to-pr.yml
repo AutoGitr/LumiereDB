@@ -139,10 +139,12 @@ jobs:
 
             if [ -n "$tmdb_id" ]; then
               target="data/movies/tmdb-${tmdb_id}.json"
+            elif [ -n "$tvdb_id" ]; then
+              target="data/movies/tvdb-${tvdb_id}.json"
             elif [ -n "$imdb_id" ]; then
               target="data/movies/imdb-${imdb_id}.json"
             else
-              fail "Movie submissions need a TMDB ID or IMDb ID."
+              fail "Movie submissions need a TMDB, TVDB, or IMDb ID."
             fi
           else
             mkdir -p data/tv

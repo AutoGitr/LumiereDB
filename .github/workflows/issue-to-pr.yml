@@ -206,15 +206,15 @@ jobs:
           git commit -m "Add dataset entry from issue #${ISSUE_NUMBER}"
           git push origin "$branch"
 
+          pr_body="$(printf 'Closes #%s\n\nAdds `%s` from the accepted issue submission.' "$ISSUE_NUMBER" "$target")"
+
           pr_url="$(
             gh pr create \
               --repo "$REPO" \
               --base main \
               --head "$branch" \
               --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
-              --body "Closes #${ISSUE_NUMBER}
-
-Adds \`${target}\` from the accepted issue submission."
+              --body "$pr_body"
           )"
 
           gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Created pull request for \`${target}\`: ${pr_url}"

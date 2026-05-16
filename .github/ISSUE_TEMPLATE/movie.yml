@@ -15,38 +15,50 @@ body:
     id: year
     attributes:
       label: Year
+      description: Four-digit release year.
+      placeholder: "1957"
 
   - type: input
     id: tmdb_id
     attributes:
       label: TMDB ID
+      description: Required unless IMDb ID is provided.
+      placeholder: "389"
 
   - type: input
     id: tvdb_id
     attributes:
       label: TVDB ID
+      placeholder: "572"
 
   - type: input
     id: imdb_id
     attributes:
       label: IMDb ID
+      description: Required unless TMDB ID is provided.
+      placeholder: "tt0050083"
 
   - type: input
     id: poster_url
     attributes:
       label: Poster URL
+      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com, or artworks.thetvdb.com.
 
   - type: input
     id: background_url
     attributes:
       label: Background URL
+      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com, or artworks.thetvdb.com.
 
   - type: input
     id: logo_url
     attributes:
       label: Logo URL
+      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com, or artworks.thetvdb.com.
 
   - type: input
     id: youtube_id
     attributes:
       label: YouTube theme video ID
+      description: Use only the 11-character video ID, not the full URL.
+      placeholder: iv6ux4rpGdc

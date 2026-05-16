@@ -15,50 +15,63 @@ body:
     id: year
     attributes:
       label: Year
+      description: Four-digit first-air year.
+      placeholder: "2001"
 
   - type: input
     id: tmdb_id
     attributes:
       label: TMDB ID
+      placeholder: "4613"
 
   - type: input
     id: tvdb_id
     attributes:
       label: TVDB ID
+      description: Required unless TMDB ID or IMDb ID is provided.
+      placeholder: "74205"
 
   - type: input
     id: imdb_id
     attributes:
       label: IMDb ID
+      placeholder: "tt0185906"
 
   - type: input
     id: poster_url
     attributes:
       label: Poster URL
+      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com, or artworks.thetvdb.com.
 
   - type: input
     id: background_url
     attributes:
       label: Background URL
+      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com, or artworks.thetvdb.com.
 
   - type: input
     id: logo_url
     attributes:
       label: Logo URL
+      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com, or artworks.thetvdb.com.
 
   - type: input
     id: youtube_id
     attributes:
       label: YouTube theme video ID
+      description: Use only the 11-character video ID, not the full URL.
+      placeholder: AB96CvvLZKc
 
   - type: textarea
     id: season_posters
     attributes:
       label: Season posters
       description: One per line, format season_number=url
+      placeholder: 1=https://image.tmdb.org/t/p/original/example.jpg
 
   - type: textarea
     id: episode_thumbs
     attributes:
       label: Episode thumbnails
       description: One per line, format season_numberxepisode_number=url
+      placeholder: 1x1=https://image.tmdb.org/t/p/original/example.jpg

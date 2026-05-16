@@ -10,10 +10,10 @@
   "art": {
     "poster_url": "https://image.tmdb.org/t/p/original/kqn5YPQySbYgum0VJzOZza8gOsq.jpg",
     "background_url": "https://artworks.thetvdb.com/banners/movies/65726/backgrounds/65726.jpg",
-    "logo_url": ""
+    "logo_url": null
   },
   "theme": {
-    "youtube_id": ""
+    "youtube_id": null
   },
   "seasons": [],
   "episodes": []

@@ -54,7 +54,8 @@ jobs:
         if: steps.gate.outputs.allowed == 'true'
         uses: actions/checkout@v6.0.2
         with:
-          ref: main
+          ref: database
+          token: ${{ secrets.LUMIEREDB_BOT_TOKEN }}
           persist-credentials: true
 
       - name: Create dataset PR from issue
@@ -64,7 +65,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.LUMIEREDB_BOT_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -146,7 +147,7 @@ jobs:
           fi
 
           if [ -f "$target" ]; then
-            fail "Dataset file already exists on main: \`${target}\`. Please update it manually."
+            fail "Dataset file already exists on database: \`${target}\`. Please update it manually."
           fi
 
           seasons_json="$(
@@ -242,8 +243,17 @@ jobs:
           pr_url="$(
             gh pr create \
               --repo "$REPO" \
-              --base main \
+              --base database \
               --head "$branch" \
               --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
               --body "$pr_body"
           )"
+
+          if ! gh pr merge "$pr_url" --repo "$REPO" --auto --squash --delete-branch; then
+            failure_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge could not be enabled. Check that repository auto-merge is enabled and that the bot token has pull request write access.' "$target" "$pr_url")"
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$failure_body"
+            exit 1
+          fi
+
+          success_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge is enabled. The pull request will merge after required checks pass.' "$target" "$pr_url")"
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$success_body"

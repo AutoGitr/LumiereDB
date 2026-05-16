@@ -136,39 +136,42 @@ jobs:
             '
           )" || fail "Episode thumbnails must use season_numberxepisode_number=url lines."
 
-          jq -n \
-            --arg media_type "$media_type" \
-            --arg title "$title" \
-            --arg year "$year" \
-            --arg tmdb "$tmdb_id" \
-            --arg tvdb "$tvdb_id" \
-            --arg imdb "$imdb_id" \
-            --arg poster "$poster_url" \
-            --arg background "$background_url" \
-            --arg logo "$logo_url" \
-            --arg youtube "$youtube_id" \
-            --argjson seasons "$seasons_json" \
-            --argjson episodes "$episodes_json" \
-            '{
-              media_type: $media_type,
-              title: $title,
-              year: (if $year == "" then null else ($year | tonumber) end),
-              external_ids: {
-                tmdb: (if $tmdb == "" then null else $tmdb end),
-                tvdb: (if $tvdb == "" then null else $tvdb end),
-                imdb: (if $imdb == "" then null else $imdb end)
-              },
-              art: {
-                poster_url: (if $poster == "" then null else $poster end),
-                background_url: (if $background == "" then null else $background end),
-                logo_url: (if $logo == "" then null else $logo end)
-              },
-              theme: {
-                youtube_id: (if $youtube == "" then null else $youtube end)
-              },
-              seasons: $seasons,
-              episodes: $episodes
-            }' > "$target"
+          if ! jq -n \
+              --arg media_type "$media_type" \
+              --arg title "$title" \
+              --arg year "$year" \
+              --arg tmdb "$tmdb_id" \
+              --arg tvdb "$tvdb_id" \
+              --arg imdb "$imdb_id" \
+              --arg poster "$poster_url" \
+              --arg background "$background_url" \
+              --arg logo "$logo_url" \
+              --arg youtube "$youtube_id" \
+              --argjson seasons "$seasons_json" \
+              --argjson episodes "$episodes_json" \
+              '{
+                media_type: $media_type,
+                title: $title,
+                year: (if $year == "" then null else ($year | tonumber) end),
+                external_ids: {
+                  tmdb: (if $tmdb == "" then null else $tmdb end),
+                  tvdb: (if $tvdb == "" then null else $tvdb end),
+                  imdb: (if $imdb == "" then null else $imdb end)
+                },
+                art: {
+                  poster_url: (if $poster == "" then null else $poster end),
+                  background_url: (if $background == "" then null else $background end),
+                  logo_url: (if $logo == "" then null else $logo end)
+                },
+                theme: {
+                  youtube_id: (if $youtube == "" then null else $youtube end)
+                },
+                seasons: $seasons,
+                episodes: $episodes
+              }' > "$target"; then
+            rm -f "$target"
+            fail "Submitted fields could not be converted into dataset JSON. Check numeric year and mapping fields."
+          fi
 
           if ! validation_output="$(bash .github/scripts/validate-entry.sh "$target" 2>&1)"; then
             rm -f "$target"

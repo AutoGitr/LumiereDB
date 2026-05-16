@@ -22,7 +22,7 @@ body:
     id: tmdb_id
     attributes:
       label: TMDB ID
-      description: Required unless IMDb ID is provided.
+      description: Required unless TVDB ID or IMDb ID is provided.
       placeholder: "389"
 
   - type: input
@@ -35,7 +35,7 @@ body:
     id: imdb_id
     attributes:
       label: IMDb ID
-      description: Required unless TMDB ID is provided.
+      description: Required unless TMDB ID or TVDB ID is provided.
       placeholder: "tt0050083"
 
   - type: input

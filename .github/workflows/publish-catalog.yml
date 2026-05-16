@@ -39,9 +39,9 @@ jobs:
 
           mkdir -p public
 
-          files="$(find data -name '*.json' | sort || true)"
+          mapfile -t files < <(find data -name '*.json' | sort)
 
-          if [ -z "$files" ]; then
+          if [ "${#files[@]}" -eq 0 ]; then
             jq -n '{
               schema_version: 1,
               generated_at: now | todateiso8601,
@@ -58,7 +58,7 @@ jobs:
                 (.external_ids.tmdb // ""),
                 (.external_ids.imdb // "")
               )
-            }' $files > public/catalog.json
+            }' "${files[@]}" > public/catalog.json
           fi
 
           gzip -n -c public/catalog.json > public/catalog.json.gz

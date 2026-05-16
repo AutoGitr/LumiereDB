@@ -1,4 +1,4 @@
-name: Issue to Dataset PR
+name: Issue to Database
 
 on:
   issues:
@@ -7,18 +7,18 @@ on:
 permissions: {}
 
 jobs:
-  create-pr:
+  update-database:
     if: github.event.label.name == 'accepted'
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
-      pull-requests: write
       issues: write
 
     steps:
       - uses: actions/checkout@v6.0.2
         with:
+          fetch-depth: 0
           persist-credentials: true
 
       - name: Create dataset JSON from issue
@@ -34,11 +34,12 @@ jobs:
           fail() {
             message="$1"
             echo "$message" >&2
-            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Could not create dataset PR: ${message}"
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Could not update database branch: ${message}"
             exit 1
           }
 
           body_file="$(mktemp)"
+          generated_file="$(mktemp)"
           printf '%s' "$ISSUE_BODY" > "$body_file"
 
           field() {
@@ -80,8 +81,6 @@ jobs:
           [ -n "$title" ] || fail "Missing Title field."
 
           if [ "$media_type" = "movie" ]; then
-            mkdir -p data/movies
-
             if [ -n "$tmdb_id" ]; then
               target="data/movies/tmdb-${tmdb_id}.json"
             elif [ -n "$imdb_id" ]; then
@@ -90,8 +89,6 @@ jobs:
               fail "Movie submissions need a TMDB ID or IMDb ID."
             fi
           else
-            mkdir -p data/tv
-
             if [ -n "$tvdb_id" ]; then
               target="data/tv/tvdb-${tvdb_id}.json"
             elif [ -n "$tmdb_id" ]; then
@@ -101,10 +98,6 @@ jobs:
             else
               fail "TV submissions need a TVDB, TMDB, or IMDb ID."
             fi
-          fi
-
-          if [ -f "$target" ]; then
-            fail "Dataset file already exists: \`${target}\`. Please update it manually."
           fi
 
           seasons_json="$(
@@ -168,32 +161,40 @@ jobs:
                 },
                 seasons: $seasons,
                 episodes: $episodes
-              }' > "$target"; then
-            rm -f "$target"
+              }' > "$generated_file"; then
             fail "Submitted fields could not be converted into dataset JSON. Check numeric year and mapping fields."
           fi
 
-          if ! validation_output="$(bash .github/scripts/validate-entry.sh "$target" 2>&1)"; then
-            rm -f "$target"
+          validation_target="$target"
+          mkdir -p "$(dirname "$validation_target")"
+          cp "$generated_file" "$validation_target"
+          if ! validation_output="$(bash .github/scripts/validate-entry.sh "$validation_target" 2>&1)"; then
+            rm -f "$validation_target"
             fail "$validation_output"
           fi
+          rm -f "$validation_target"
 
-          branch="dataset/issue-${ISSUE_NUMBER}"
+          if git ls-remote --exit-code --heads origin database >/dev/null 2>&1; then
+            git fetch origin database:database
+            git worktree add database-worktree database
+          else
+            git worktree add --detach database-worktree
+            git -C database-worktree checkout --orphan database
+            git -C database-worktree rm -rf . || true
+          fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
-          git add "$target"
-          git commit -m "Add dataset entry from issue #${ISSUE_NUMBER}"
-          git push origin "$branch"
+          if [ -f "database-worktree/$target" ]; then
+            fail "Dataset file already exists on database branch: \`${target}\`. Please update it manually."
+          fi
 
-          pr_url="$(
-            gh pr create \
-              --repo "$REPO" \
-              --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
-              --body "Created from #${ISSUE_NUMBER}. Closes #${ISSUE_NUMBER}." \
-              --base main \
-              --head "$branch"
-          )"
+          mkdir -p "database-worktree/$(dirname "$target")"
+          cp "$generated_file" "database-worktree/$target"
 
-          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Created dataset PR: $pr_url"
+          git -C database-worktree config user.name "github-actions[bot]"
+          git -C database-worktree config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C database-worktree add "$target"
+          git -C database-worktree commit -m "Add dataset entry from issue #${ISSUE_NUMBER}"
+          git -C database-worktree push origin HEAD:database
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Added dataset entry to \`database\`: \`$target\`."
+          gh issue close "$ISSUE_NUMBER" --repo "$REPO" --comment "Dataset entry accepted and committed to the database branch."

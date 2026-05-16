@@ -35,56 +35,11 @@ jobs:
             echo "$dataset_files"
 
             for file in $dataset_files; do
-              echo "Checking $file"
-
               if [ ! -f "$file" ]; then
                 echo "Skipping deleted file: $file"
                 continue
               fi
-
-              jq empty "$file"
-
-              media_type="$(jq -r '.media_type // empty' "$file")"
-              test "$media_type" = "movie" -o "$media_type" = "tv"
-
-              title="$(jq -r '.title // empty' "$file")"
-              test -n "$title"
-
-              year="$(jq -r '.year // empty' "$file")"
-              if [ -n "$year" ]; then
-                echo "$year" | grep -Eq '^[0-9]{4}$'
-              fi
-
-              tmdb="$(jq -r '.external_ids.tmdb // empty' "$file")"
-              tvdb="$(jq -r '.external_ids.tvdb // empty' "$file")"
-              imdb="$(jq -r '.external_ids.imdb // empty' "$file")"
-
-              if [ -n "$tmdb" ]; then echo "$tmdb" | grep -Eq '^[0-9]+$'; fi
-              if [ -n "$tvdb" ]; then echo "$tvdb" | grep -Eq '^[0-9]+$'; fi
-              if [ -n "$imdb" ]; then echo "$imdb" | grep -Eq '^tt[0-9]+$'; fi
-
-              youtube_id="$(jq -r '.theme.youtube_id // empty' "$file")"
-              if [ -n "$youtube_id" ]; then
-                echo "$youtube_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'
-              fi
-
-              jq -r '
-                [
-                  .art.poster_url,
-                  .art.background_url,
-                  .art.logo_url,
-                  (.seasons[]?.poster_url),
-                  (.episodes[]?.thumb_url)
-                ] | .[] | select(. != null and . != "")
-              ' "$file" | while IFS= read -r url; do
-                echo "$url" | grep -Eq '^https://'
-                case "$url" in
-                  *githubusercontent.com*|*discordapp.com*|*discord.com*|*localhost*|*127.0.0.1*|*0.0.0.0*)
-                    echo "Rejected unstable or unsafe URL: $url"
-                    exit 1
-                    ;;
-                esac
-              done
+              bash .github/scripts/validate-entry.sh "$file"
             done
           fi
 

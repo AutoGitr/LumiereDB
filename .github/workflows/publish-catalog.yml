@@ -47,11 +47,17 @@ jobs:
             jq -s '{
               schema_version: 1,
               generated_at: now | todateiso8601,
-              entries: .
+              entries: sort_by(
+                .media_type,
+                .title,
+                (.external_ids.tvdb // ""),
+                (.external_ids.tmdb // ""),
+                (.external_ids.imdb // "")
+              )
             }' $files > public/catalog.json
           fi
 
-          gzip -c public/catalog.json > public/catalog.json.gz
+          gzip -n -c public/catalog.json > public/catalog.json.gz
 
           cat > public/index.html <<'HTML'
           <!doctype html>

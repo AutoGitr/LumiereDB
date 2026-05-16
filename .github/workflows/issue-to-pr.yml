@@ -122,15 +122,29 @@ jobs:
 
           [ -n "$title" ] || fail "Missing Title field."
 
+          if [ -n "$tmdb_id" ] && ! printf '%s' "$tmdb_id" | grep -Eq '^[0-9]+$'; then
+            fail "TMDB ID must contain digits only."
+          fi
+
+          if [ -n "$tvdb_id" ] && ! printf '%s' "$tvdb_id" | grep -Eq '^[0-9]+$'; then
+            fail "TVDB ID must contain digits only."
+          fi
+
+          if [ -n "$imdb_id" ] && ! printf '%s' "$imdb_id" | grep -Eq '^tt[0-9]+$'; then
+            fail "IMDb ID must use the format tt followed by digits."
+          fi
+
           if [ "$media_type" = "movie" ]; then
             mkdir -p data/movies
 
             if [ -n "$tmdb_id" ]; then
               target="data/movies/tmdb-${tmdb_id}.json"
+            elif [ -n "$tvdb_id" ]; then
+              target="data/movies/tvdb-${tvdb_id}.json"
             elif [ -n "$imdb_id" ]; then
               target="data/movies/imdb-${imdb_id}.json"
             else
-              fail "Movie submissions need a TMDB ID or IMDb ID."
+              fail "Movie submissions need a TMDB, TVDB, or IMDb ID."
             fi
           else
             mkdir -p data/tv

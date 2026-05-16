@@ -27,16 +27,26 @@ jobs:
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
+            deleted_dataset_files="$(git diff --name-only --diff-filter=D "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- 'data/**/*.json' || true)"
           else
             changed_files="$(find data -name '*.json' | sort || true)"
+            deleted_dataset_files=""
+          fi
+
+          if [ -n "$deleted_dataset_files" ]; then
+            echo "Dataset entries may not be deleted in pull requests:"
+            echo "$deleted_dataset_files"
+            exit 1
           fi
 
           if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "database" ]; then
-            non_dataset_files="$(printf '%s\n' "$changed_files" | grep -Ev '^data/.+\.json$' || true)"
-            if [ -n "$non_dataset_files" ]; then
-              echo "Only dataset JSON files may change in pull requests targeting database:"
-              echo "$non_dataset_files"
-              exit 1
+            if [ "${{ github.head_ref }}" != "sync/main-to-database" ]; then
+              non_dataset_files="$(printf '%s\n' "$changed_files" | grep -Ev '^data/.+\.json$' || true)"
+              if [ -n "$non_dataset_files" ]; then
+                echo "Only dataset JSON files may change in pull requests targeting database:"
+                echo "$non_dataset_files"
+                exit 1
+              fi
             fi
           fi
 
@@ -48,13 +58,10 @@ jobs:
             echo "Dataset files changed:"
             echo "$dataset_files"
 
-            for file in $dataset_files; do
-              if [ ! -f "$file" ]; then
-                echo "Skipping deleted file: $file"
-                continue
-              fi
+            while IFS= read -r file; do
+              [ -n "$file" ] || continue
               bash .github/scripts/validate-entry.sh "$file"
-            done
+            done <<< "$dataset_files"
           fi
 
           duplicate_filenames="$(

@@ -89,8 +89,16 @@ case "${file}:${media_type}" in
   *) fail "file path does not match media_type" ;;
 esac
 
-if [ "$media_type" = "movie" ] && [ -z "$tmdb_id" ] && [ -z "$imdb_id" ]; then
-  fail "movie entries need a TMDB ID or IMDb ID"
+if [ "$media_type" = "movie" ] && ! [[ "$file" =~ ^data/movies/(tmdb-[0-9]+|tvdb-[0-9]+|imdb-tt[0-9]+)\.json$ ]]; then
+  fail "movie filename must be tmdb-<digits>.json, tvdb-<digits>.json, or imdb-tt<digits>.json"
+fi
+
+if [ "$media_type" = "tv" ] && ! [[ "$file" =~ ^data/tv/(tvdb-[0-9]+|tmdb-[0-9]+|imdb-tt[0-9]+)\.json$ ]]; then
+  fail "TV filename must be tvdb-<digits>.json, tmdb-<digits>.json, or imdb-tt<digits>.json"
+fi
+
+if [ "$media_type" = "movie" ] && [ -z "$tmdb_id" ] && [ -z "$tvdb_id" ] && [ -z "$imdb_id" ]; then
+  fail "movie entries need a TMDB, TVDB, or IMDb ID"
 fi
 
 if [ "$media_type" = "tv" ] && [ -z "$tvdb_id" ] && [ -z "$tmdb_id" ] && [ -z "$imdb_id" ]; then

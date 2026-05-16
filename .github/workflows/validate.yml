@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - database
   workflow_dispatch:
 
 permissions:
@@ -28,6 +29,15 @@ jobs:
             changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
           else
             changed_files="$(find data -name '*.json' | sort || true)"
+          fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "database" ]; then
+            non_dataset_files="$(printf '%s\n' "$changed_files" | grep -Ev '^data/.+\.json$' || true)"
+            if [ -n "$non_dataset_files" ]; then
+              echo "Only dataset JSON files may change in pull requests targeting database:"
+              echo "$non_dataset_files"
+              exit 1
+            fi
           fi
 
           dataset_files="$(printf '%s\n' "$changed_files" | grep -E '^data/.+\.json$' | sort || true)"

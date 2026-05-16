@@ -54,7 +54,7 @@ jobs:
         if: steps.gate.outputs.allowed == 'true'
         uses: actions/checkout@v6.0.2
         with:
-          ref: main
+          ref: database
           token: ${{ secrets.LUMIEREDB_BOT_TOKEN }}
           persist-credentials: true
 
@@ -147,7 +147,7 @@ jobs:
           fi
 
           if [ -f "$target" ]; then
-            fail "Dataset file already exists on main: \`${target}\`. Please update it manually."
+            fail "Dataset file already exists on database: \`${target}\`. Please update it manually."
           fi
 
           seasons_json="$(
@@ -243,7 +243,7 @@ jobs:
           pr_url="$(
             gh pr create \
               --repo "$REPO" \
-              --base main \
+              --base database \
               --head "$branch" \
               --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
               --body "$pr_body"

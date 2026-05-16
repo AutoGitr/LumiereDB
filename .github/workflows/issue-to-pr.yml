@@ -1,4 +1,5 @@
 name: Issue to Pull Request
+run-name: Issue #${{ github.event.issue.number }} accepted by @${{ github.actor }}
 
 on:
   issues:
@@ -12,7 +13,7 @@ concurrency:
 
 jobs:
   create-dataset-pr:
-    if: github.event.label.name == 'accepted'
+    if: github.event.action == 'labeled' && github.event.label.name == 'accepted'
     runs-on: ubuntu-latest
 
     permissions:
@@ -21,13 +22,43 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Check accepted-label permission
+        id: gate
+        env:
+          ACTOR: ${{ github.actor }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          actor_permission="$(
+            gh api "repos/${REPO}/collaborators/${ACTOR}/permission" \
+              --jq '.permission' 2>/dev/null || true
+          )"
+
+          case "$actor_permission" in
+            admin|maintain|write)
+              echo "allowed=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "$LABEL_NAME" || true
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Ignoring \`${LABEL_NAME}\` from @${ACTOR}: maintainer write access is required to accept contributions."
+              ;;
+          esac
+
       - name: Checkout repository
+        if: steps.gate.outputs.allowed == 'true'
         uses: actions/checkout@v6.0.2
         with:
           ref: main
           persist-credentials: true
 
       - name: Create dataset PR from issue
+        if: steps.gate.outputs.allowed == 'true'
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -216,5 +247,3 @@ jobs:
               --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
               --body "$pr_body"
           )"
-
-          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Created pull request for \`${target}\`: ${pr_url}"

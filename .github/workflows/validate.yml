@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - main
-      - database
   workflow_dispatch:
 
 permissions:
@@ -39,14 +38,12 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "database" ]; then
-            if [ "${{ github.head_ref }}" != "sync/main-to-database" ]; then
-              non_dataset_files="$(printf '%s\n' "$changed_files" | grep -Ev '^data/.+\.json$' || true)"
-              if [ -n "$non_dataset_files" ]; then
-                echo "Only dataset JSON files may change in pull requests targeting database:"
-                echo "$non_dataset_files"
-                exit 1
-              fi
+          if [ "${{ github.event_name }}" = "pull_request" ] && [[ "${{ github.head_ref }}" == contribution/* ]]; then
+            non_dataset_files="$(printf '%s\n' "$changed_files" | grep -Ev '^data/.+\.json$' || true)"
+            if [ -n "$non_dataset_files" ]; then
+              echo "Only dataset JSON files may change in contribution pull requests:"
+              echo "$non_dataset_files"
+              exit 1
             fi
           fi
 

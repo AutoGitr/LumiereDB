@@ -54,7 +54,7 @@ jobs:
         if: steps.gate.outputs.allowed == 'true'
         uses: actions/checkout@v6.0.2
         with:
-          ref: database
+          ref: main
           token: ${{ secrets.LUMIEREDB_BOT_TOKEN }}
           persist-credentials: true
 
@@ -257,7 +257,7 @@ jobs:
           pr_url="$(
             gh pr create \
               --repo "$REPO" \
-              --base database \
+              --base main \
               --head "$branch" \
               --title "Add dataset entry from issue #${ISSUE_NUMBER}" \
               --body "$pr_body"

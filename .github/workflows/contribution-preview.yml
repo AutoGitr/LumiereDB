@@ -71,6 +71,39 @@ jobs:
             if [ "$status" = "ok" ]; then
               echo "Proposed target: \`$target\`"
               echo
+              echo "Identifiers:"
+
+              media_type="$(jq -r '.media_type' "$target")"
+              tmdb_id="$(jq -r '.external_ids.tmdb // ""' "$target")"
+              tvdb_id="$(jq -r '.external_ids.tvdb // ""' "$target")"
+              imdb_id="$(jq -r '.external_ids.imdb // ""' "$target")"
+              youtube_id="$(jq -r '.theme.youtube_id // ""' "$target")"
+
+              if [ -n "$tmdb_id" ]; then
+                if [ "$media_type" = "tv" ]; then
+                  echo "- TMDB: [$tmdb_id](https://www.themoviedb.org/tv/$tmdb_id)"
+                else
+                  echo "- TMDB: [$tmdb_id](https://www.themoviedb.org/movie/$tmdb_id)"
+                fi
+              fi
+
+              if [ -n "$tvdb_id" ]; then
+                if [ "$media_type" = "tv" ]; then
+                  echo "- TVDB: [$tvdb_id](https://thetvdb.com/dereferrer/series/$tvdb_id)"
+                else
+                  echo "- TVDB: [$tvdb_id](https://thetvdb.com/dereferrer/movie/$tvdb_id)"
+                fi
+              fi
+
+              if [ -n "$imdb_id" ]; then
+                echo "- IMDb: [$imdb_id](https://www.imdb.com/title/$imdb_id/)"
+              fi
+
+              if [ -n "$youtube_id" ]; then
+                echo "- YouTube: [$youtube_id](https://www.youtube.com/watch?v=$youtube_id)"
+              fi
+
+              echo
               echo '```diff'
               git diff --no-index -- /dev/null "$target" || true
               echo '```'

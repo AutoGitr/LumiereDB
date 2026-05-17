@@ -1,12 +1,2 @@
 # Require owner to review everything
 * @AutoGitr
-
-# Explicitly protect automation and issue templates
-.github/workflows/* @AutoGitr
-.github/ISSUE_TEMPLATE/* @AutoGitr
-.github/scripts/* @AutoGitr
-schema/* @AutoGitr
-
-# Explicitly protect dataset entries
-data/* @AutoGitr
-data/**/* @AutoGitr

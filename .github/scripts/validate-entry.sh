@@ -28,12 +28,12 @@ validate_art_url() {
       ;;
   esac
 
-  if printf '%s' "$host" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$|:|\[|\]'; then
+  if printf '%s' "$host" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$|:|\\[|\\]'; then
     fail "direct IP art URLs are not allowed: ${url}"
   fi
 
   case "$host" in
-    image.tmdb.org|assets.fanart.tv|theposterdb.com|www.theposterdb.com|artworks.thetvdb.com)
+    image.tmdb.org|assets.fanart.tv|theposterdb.com|www.theposterdb.com|artworks.thetvdb.com|metadata-static.plex.tv)
       ;;
     *)
       fail "art URL host is not allowlisted: ${host}"
@@ -56,7 +56,7 @@ jq -e '
   def nonnegative_integer: integer and . >= 0;
   def year_value: . == null or (integer and . >= 1000 and . <= 9999);
 
-  (keys_unsorted | sort) == ["art","episodes","external_ids","media_type","seasons","theme","title","year"] and
+  (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","theme","title","year"] and
   (.media_type == "movie" or .media_type == "tv") and
   (.title | type == "string" and length > 0 and length <= 200) and
   (.year | year_value) and
@@ -66,17 +66,14 @@ jq -e '
   (.external_ids.tvdb | optional_digits) and
   (.external_ids.imdb | optional_imdb) and
   (.art | type == "object") and
-  (.art | (keys_unsorted | sort) == ["background_url","logo_url","poster_url"]) and
+  (.art | (keys_unsorted | sort) == ["background_url","poster_url"]) and
   (.art.poster_url | optional_string) and
   (.art.background_url | optional_string) and
-  (.art.logo_url | optional_string) and
   (.theme | type == "object") and
   (.theme | (keys_unsorted | sort) == ["youtube_id"]) and
   (.theme.youtube_id | optional_youtube) and
   (.seasons | type == "array") and
-  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0)) and
-  (.episodes | type == "array") and
-  all(.episodes[]; type == "object" and (keys_unsorted | sort) == ["episode_number","season_number","thumb_url"] and (.season_number | nonnegative_integer) and (.episode_number | nonnegative_integer) and (.thumb_url | type == "string" and length > 0))
+  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0))
 ' "$file" >/dev/null || fail "entry does not match schema shape"
 
 media_type="$(jq -r '.media_type' "$file")"
@@ -109,9 +106,7 @@ jq -r '
   [
     .art.poster_url,
     .art.background_url,
-    .art.logo_url,
-    (.seasons[]?.poster_url),
-    (.episodes[]?.thumb_url)
+    (.seasons[]?.poster_url)
   ] | .[] | select(. != null and . != "")
 ' "$file" | while IFS= read -r url; do
   validate_art_url "$url"

@@ -74,7 +74,7 @@ jobs:
             *)
               echo "approved=false" >> "$GITHUB_OUTPUT"
               gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
-                --body "Ignoring approval command from @${ACTOR}: owner or maintainer access is required to accept contributions."
+                --body "Ignoring approval command from @${ACTOR}: owner or maintainer access is required to approve contributions."
               ;;
           esac
 

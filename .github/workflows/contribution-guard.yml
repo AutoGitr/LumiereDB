@@ -1,4 +1,4 @@
-name: Validate PR
+name: Contribution Guard
 
 on:
   pull_request:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  repo-guard:
-    name: repo-guard
+  contribution-guard:
+    name: contribution-guard
     runs-on: ubuntu-latest
 
     steps:
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate repository changes
+      - name: Validate contribution changes
         shell: bash
         run: |
           set -euo pipefail
@@ -28,7 +28,11 @@ jobs:
             changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
             deleted_dataset_files="$(git diff --name-only --diff-filter=D "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- 'data/**/*.json' || true)"
           else
-            changed_files="$(find data -name '*.json' | sort || true)"
+            if [ -d data ]; then
+              changed_files="$(find data -name '*.json' | sort)"
+            else
+              changed_files=""
+            fi
             deleted_dataset_files=""
           fi
 
@@ -61,14 +65,20 @@ jobs:
             done <<< "$dataset_files"
           fi
 
-          duplicate_filenames="$(
-            find data -name '*.json' -printf '%f\n' \
-              | sort \
-              | uniq -d
-          )"
+          if [ -d data ]; then
+            duplicate_filenames="$(
+              find data -name '*.json' -printf '%f\n' \
+                | sort \
+                | uniq -d
+            )"
+          else
+            duplicate_filenames=""
+          fi
 
           if [ -n "$duplicate_filenames" ]; then
             echo "Duplicate dataset filenames:"
             echo "$duplicate_filenames"
             exit 1
           fi
+
+          bash .github/scripts/validate-dataset-identities.sh

@@ -12,6 +12,13 @@ fail() {
 validate_art_url() {
   local url="$1"
   local host
+  local path
+  local lower_path
+  local extension
+  local headers
+  local body
+  local content_type
+  local magic
 
   [ -z "$url" ] && return 0
 
@@ -21,6 +28,8 @@ validate_art_url() {
   esac
 
   host="$(printf '%s' "$url" | sed -E 's#^https://([^/:?#]+).*$#\1#' | tr '[:upper:]' '[:lower:]')"
+  path="$(printf '%s' "$url" | sed -E 's#^https://[^/?#]+([^?#]*).*$#\1#')"
+  lower_path="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
 
   case "$host" in
     localhost|*.localhost|127.*|0.0.0.0|10.*|192.168.*|172.16.*|172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|172.29.*|172.30.*|172.31.*|*.githubusercontent.com|githubusercontent.com|discordapp.com|*.discordapp.com|discord.com|*.discord.com)
@@ -39,6 +48,59 @@ validate_art_url() {
       fail "art URL host is not allowlisted: ${host}"
       ;;
   esac
+
+  case "$host" in
+    theposterdb.com|www.theposterdb.com)
+      case "$path" in
+        /api/*) ;;
+        *) fail "theposterdb art URLs must use the /api/ path: ${url}" ;;
+      esac
+      ;;
+  esac
+
+  if [[ "$lower_path" =~ \.([a-z0-9]+)$ ]]; then
+    extension="${BASH_REMATCH[1]}"
+    case "$extension" in
+      jpg|jpeg|png) ;;
+      *) fail "art URL file extension must be jpg, jpeg, or png: ${url}" ;;
+    esac
+  fi
+
+  headers="$(mktemp)"
+  body="$(mktemp)"
+  trap 'rm -f "$headers" "$body"' RETURN
+
+  if ! curl --fail --silent --show-error --location --max-time 20 --retry 2 --range 0-15 --dump-header "$headers" --output "$body" "$url"; then
+    fail "art URL is not reachable: ${url}"
+  fi
+
+  content_type="$(
+    awk '
+      BEGIN { IGNORECASE = 1 }
+      /^content-type:/ {
+        value = $0
+        sub(/\r$/, "", value)
+        sub(/^[^:]*:[[:space:]]*/, "", value)
+        sub(/[;[:space:]].*$/, "", value)
+        content_type = tolower(value)
+      }
+      END { print content_type }
+    ' "$headers"
+  )"
+
+  case "$content_type" in
+    image/jpeg|image/jpg|image/png) ;;
+    *) fail "art URL must resolve to a JPG/JPEG or PNG image: ${url} (got ${content_type:-unknown})" ;;
+  esac
+
+  magic="$(od -An -tx1 -N8 "$body" | tr -d '[:space:]')"
+  case "$content_type:$magic" in
+    image/jpeg:ffd8ff*|image/jpg:ffd8ff*|image/png:89504e470d0a1a0a*) ;;
+    *) fail "art URL response body is not a valid JPG/JPEG or PNG image: ${url}" ;;
+  esac
+
+  rm -f "$headers" "$body"
+  trap - RETURN
 }
 
 [ -f "$file" ] || fail "file does not exist"

@@ -1,0 +1,18 @@
+{
+  "media_type": "movie",
+  "title": "12 Angry Men",
+  "year": 1957,
+  "external_ids": {
+    "tmdb": "389",
+    "tvdb": "572",
+    "imdb": "tt0050083"
+  },
+  "art": {
+    "poster_url": "https://image.tmdb.org/t/p/original/maGiVq0dWiZr61HMI2DHoARwDJJ.jpg",
+    "background_url": "https://image.tmdb.org/t/p/original/p1nBxgrSu9Ex0Uvci1ItWWCWPlk.jpg"
+  },
+  "theme": {
+    "youtube_id": "iv6ux4rpGdc"
+  },
+  "seasons": []
+}

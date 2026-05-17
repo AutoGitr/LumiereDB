@@ -2,7 +2,7 @@ name: Publish Catalog
 
 on:
   push:
-    branches: [database]
+    branches: [main]
     paths:
       - "data/**/*.json"
       - "schema/entry.schema.json"

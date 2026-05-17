@@ -1,0 +1,104 @@
+name: Contribution Preview
+run-name: "Contribution #${{ github.event.issue.number }} preview"
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions: {}
+
+concurrency:
+  group: contribution-preview-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: |
+      !github.event.issue.pull_request &&
+      contains(github.event.issue.labels.*.name, 'contribution')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Build and comment preview
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          marker="<!-- lumieredb-contribution-preview -->"
+          body_file="$(mktemp)"
+          labels_file="$(mktemp)"
+          comment_file="$(mktemp)"
+          payload_file="$(mktemp)"
+          error_file="$(mktemp)"
+
+          printf '%s' "$ISSUE_BODY" > "$body_file"
+          gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' > "$labels_file"
+
+          status="ok"
+          target=""
+          message=""
+
+          if ! target="$(bash .github/scripts/build-contribution-entry.sh "$body_file" "$ISSUE_TITLE" "$labels_file" . 2>"$error_file")"; then
+            status="error"
+            message="$(cat "$error_file")"
+          fi
+
+          if [ "$status" = "ok" ]; then
+            if ! message="$(bash .github/scripts/validate-entry.sh "$target" schema/entry.schema.json 2>&1)"; then
+              status="error"
+            elif ! message="$(bash .github/scripts/validate-dataset-identities.sh 2>&1)"; then
+              status="error"
+            fi
+          fi
+
+          {
+            echo "$marker"
+            echo "### LumiereDB contribution preview"
+            echo
+
+            if [ "$status" = "ok" ]; then
+              echo "Proposed target: \`$target\`"
+              echo
+              echo '```diff'
+              git diff --no-index -- /dev/null "$target" || true
+              echo '```'
+            else
+              echo "Could not build or validate this contribution:"
+              echo
+              echo '```text'
+              printf '%s\n' "$message"
+              echo '```'
+            fi
+
+            cat bot_commands.md
+          } > "$comment_file"
+
+          jq -n --rawfile body "$comment_file" '{body: $body}' > "$payload_file"
+
+          comment_id="$(
+            gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" --paginate \
+              --jq '.[] | select(.body | contains("<!-- lumieredb-contribution-preview -->")) | .id' \
+              | tail -n1
+          )"
+
+          if [ -n "$comment_id" ]; then
+            gh api "repos/${REPO}/issues/comments/${comment_id}" \
+              --method PATCH \
+              --input "$payload_file" >/dev/null
+          else
+            gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
+              --method POST \
+              --input "$payload_file" >/dev/null
+          fi

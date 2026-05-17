@@ -1,12 +1,8 @@
 name: Publish Catalog
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "data/**/*.json"
-      - "schema/entry.schema.json"
-      - ".github/workflows/publish-catalog.yml"
+  schedule:
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
 permissions:
@@ -45,12 +41,14 @@ jobs:
             jq -n '{
               schema_version: 1,
               generated_at: now | todateiso8601,
+              third_party_notices: "THIRD_PARTY_NOTICES.md",
               entries: []
             }' > public/catalog.json
           else
             jq -s '{
               schema_version: 1,
               generated_at: now | todateiso8601,
+              third_party_notices: "THIRD_PARTY_NOTICES.md",
               entries: sort_by(
                 .media_type,
                 .title,
@@ -62,6 +60,15 @@ jobs:
           fi
 
           gzip -n -c public/catalog.json > public/catalog.json.gz
+
+          if [ -f THIRD_PARTY_NOTICES.md ]; then
+            cp THIRD_PARTY_NOTICES.md public/THIRD_PARTY_NOTICES.md
+          fi
+
+          if [ -f licenses/ThemerrDB-LICENSE ]; then
+            mkdir -p public/licenses
+            cp licenses/ThemerrDB-LICENSE public/licenses/ThemerrDB-LICENSE
+          fi
 
           cat > public/index.html <<'HTML'
           <!doctype html>
@@ -75,6 +82,7 @@ jobs:
               <ul>
                 <li><a href="./catalog.json">catalog.json</a></li>
                 <li><a href="./catalog.json.gz">catalog.json.gz</a></li>
+                <li><a href="./THIRD_PARTY_NOTICES.md">Third-party notices</a></li>
               </ul>
             </body>
           </html>

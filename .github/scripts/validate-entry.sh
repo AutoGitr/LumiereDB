@@ -117,8 +117,15 @@ jq -e '
   def integer: type == "number" and . == floor;
   def nonnegative_integer: integer and . >= 0;
   def year_value: . == null or (integer and . >= 1000 and . <= 9999);
+  def source_object:
+    type == "object" and
+    (keys_unsorted | sort) == ["license","name","url"] and
+    (.name | type == "string" and length > 0) and
+    (.url | type == "string" and length > 0) and
+    (.license | type == "string" and length > 0);
 
-  (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","theme","title","year"] and
+  ((keys_unsorted | sort) == ["art","external_ids","media_type","seasons","theme","title","year"] or
+   (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","sources","theme","title","year"]) and
   (.media_type == "movie" or .media_type == "tv") and
   (.title | type == "string" and length > 0 and length <= 200) and
   (.year | year_value) and
@@ -135,7 +142,8 @@ jq -e '
   (.theme | (keys_unsorted | sort) == ["youtube_id"]) and
   (.theme.youtube_id | optional_youtube) and
   (.seasons | type == "array") and
-  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0))
+  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0)) and
+  ((has("sources") | not) or (.sources | type == "array" and length > 0 and all(.[]; source_object)))
 ' "$file" >/dev/null || fail "entry does not match schema shape"
 
 media_type="$(jq -r '.media_type' "$file")"

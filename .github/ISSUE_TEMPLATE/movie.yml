@@ -1,6 +1,6 @@
 name: Contribute movie metadata
 description: Submit public art and theme links for a movie.
-title: "[Movie]: "
+title: "[Movie]: Title (Year)"
 labels: ["contribution", "movie"]
 
 body:

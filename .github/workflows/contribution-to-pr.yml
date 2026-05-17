@@ -1,0 +1,262 @@
+name: Contribution to Pull Request
+run-name: "Contribution #${{ github.event.issue.number }} accepted by @${{ github.actor }}"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: contribution-to-pr-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  create-contribution-pr:
+    if: |
+      github.event.label.name == 'accepted' &&
+      contains(github.event.issue.labels.*.name, 'contribution')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Check accepted-label permission
+        id: gate
+        env:
+          ACTOR: ${{ github.actor }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          actor_permission="$(
+            gh api "repos/${REPO}/collaborators/${ACTOR}/permission" \
+              --jq '.permission' 2>/dev/null || true
+          )"
+
+          case "$actor_permission" in
+            admin|maintain|write)
+              echo "allowed=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "$LABEL_NAME" || true
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+                --body "Ignoring \`${LABEL_NAME}\` from @${ACTOR}: owner or maintainer access is required to accept contributions."
+              ;;
+          esac
+
+      - name: Generate bot token
+        if: steps.gate.outputs.allowed == 'true'
+        id: bot-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LUMIEREDB_APP_ID }}
+          private-key: ${{ secrets.LUMIEREDB_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        if: steps.gate.outputs.allowed == 'true'
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: main
+          token: ${{ steps.bot-token.outputs.token }}
+          persist-credentials: true
+
+      - name: Create contribution PR from issue
+        if: steps.gate.outputs.allowed == 'true'
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail() {
+            message="$1"
+            echo "$message" >&2
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Could not create contribution pull request: ${message}"
+            exit 1
+          }
+
+          body_file="$(mktemp)"
+          printf '%s' "$ISSUE_BODY" > "$body_file"
+
+          field() {
+            awk -v heading="$1" '
+              $0 == "### " heading { capture = 1; next }
+              /^### / && capture { exit }
+              capture { print }
+            ' "$body_file" \
+              | sed '/^[[:space:]]*$/d' \
+              | sed 's/^_No response_$//'
+          }
+
+          clean_single_line() {
+            printf '%s' "$1" | tr -d '\r' | head -n1
+          }
+
+          labels="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')"
+
+          if echo "$labels" | grep -qx "movie"; then
+            media_type="movie"
+          elif echo "$labels" | grep -qx "show"; then
+            media_type="tv"
+          elif printf '%s' "$ISSUE_TITLE" | grep -q '^\[Movie\]:'; then
+            media_type="movie"
+          elif printf '%s' "$ISSUE_TITLE" | grep -q '^\[Show\]:'; then
+            media_type="tv"
+          else
+            fail "Issue must use the movie or show contribution form."
+          fi
+
+          title="$(clean_single_line "$(field "Title")")"
+          year="$(clean_single_line "$(field "Year")")"
+          tmdb_id="$(clean_single_line "$(field "TMDB ID")")"
+          tvdb_id="$(clean_single_line "$(field "TVDB ID")")"
+          imdb_id="$(clean_single_line "$(field "IMDb ID")")"
+          poster_url="$(clean_single_line "$(field "Poster URL")")"
+          background_url="$(clean_single_line "$(field "Background URL")")"
+          youtube_id="$(clean_single_line "$(field "YouTube theme video ID")")"
+          season_posters="$(field "Season posters")"
+
+          [ -n "$title" ] || fail "Missing Title field."
+
+          if [ -n "$tmdb_id" ] && ! printf '%s' "$tmdb_id" | grep -Eq '^[0-9]+$'; then
+            fail "TMDB ID must contain digits only."
+          fi
+
+          if [ -n "$tvdb_id" ] && ! printf '%s' "$tvdb_id" | grep -Eq '^[0-9]+$'; then
+            fail "TVDB ID must contain digits only."
+          fi
+
+          if [ -n "$imdb_id" ] && ! printf '%s' "$imdb_id" | grep -Eq '^tt[0-9]+$'; then
+            fail "IMDb ID must use the format tt followed by digits."
+          fi
+
+          if [ "$media_type" = "movie" ]; then
+            mkdir -p data/movies
+
+            if [ -n "$tmdb_id" ]; then
+              target="data/movies/tmdb-${tmdb_id}.json"
+            elif [ -n "$tvdb_id" ]; then
+              target="data/movies/tvdb-${tvdb_id}.json"
+            elif [ -n "$imdb_id" ]; then
+              target="data/movies/imdb-${imdb_id}.json"
+            else
+              fail "Movie contributions need a TMDB, TVDB, or IMDb ID."
+            fi
+          else
+            mkdir -p data/tv
+
+            if [ -n "$tvdb_id" ]; then
+              target="data/tv/tvdb-${tvdb_id}.json"
+            elif [ -n "$tmdb_id" ]; then
+              target="data/tv/tmdb-${tmdb_id}.json"
+            elif [ -n "$imdb_id" ]; then
+              target="data/tv/imdb-${imdb_id}.json"
+            else
+              fail "Show contributions need a TVDB, TMDB, or IMDb ID."
+            fi
+          fi
+
+          if [ -f "$target" ]; then
+            fail "Dataset file already exists on main: \`${target}\`. Please update it manually."
+          fi
+
+          seasons_json="$(
+            printf '%s\n' "$season_posters" | jq -R -s '
+              split("\n")
+              | map(select(length > 0 and contains("=")))
+              | map(
+                  capture("^(?<season_number>[0-9]+)=(?<poster_url>.+)$")
+                  | {
+                      season_number: (.season_number | tonumber),
+                      poster_url
+                    }
+                )
+            '
+          )" || fail "Season posters must use season_number=url lines."
+
+          if ! jq -n \
+              --arg media_type "$media_type" \
+              --arg title "$title" \
+              --arg year "$year" \
+              --arg tmdb "$tmdb_id" \
+              --arg tvdb "$tvdb_id" \
+              --arg imdb "$imdb_id" \
+              --arg poster "$poster_url" \
+              --arg background "$background_url" \
+              --arg youtube "$youtube_id" \
+              --argjson seasons "$seasons_json" \
+              '{
+                media_type: $media_type,
+                title: $title,
+                year: (if $year == "" then null else ($year | tonumber) end),
+                external_ids: {
+                  tmdb: (if $tmdb == "" then null else $tmdb end),
+                  tvdb: (if $tvdb == "" then null else $tvdb end),
+                  imdb: (if $imdb == "" then null else $imdb end)
+                },
+                art: {
+                  poster_url: (if $poster == "" then null else $poster end),
+                  background_url: (if $background == "" then null else $background end)
+                },
+                theme: {
+                  youtube_id: (if $youtube == "" then null else $youtube end)
+                },
+                seasons: $seasons
+              }' > "$target"; then
+            rm -f "$target"
+            fail "Submitted fields could not be converted into dataset JSON. Check numeric year and mapping fields."
+          fi
+
+          if ! validation_output="$(bash .github/scripts/validate-entry.sh "$target" schema/entry.schema.json 2>&1)"; then
+            rm -f "$target"
+            fail "$validation_output"
+          fi
+
+          branch="contribution/issue-${ISSUE_NUMBER}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            fail "Contribution branch already exists: \`${branch}\`. Please review the existing branch or pull request."
+          fi
+
+          git switch -c "$branch"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$target"
+
+          if git diff --cached --quiet; then
+            fail "No dataset changes were produced."
+          fi
+
+          git commit -m "Add dataset entry from contribution #${ISSUE_NUMBER}"
+          git push origin "$branch"
+
+          pr_body="$(printf 'Closes #%s\n\nAdds `%s` from the accepted contribution.' "$ISSUE_NUMBER" "$target")"
+
+          pr_url="$(
+            gh pr create \
+              --repo "$REPO" \
+              --base main \
+              --head "$branch" \
+              --title "Add dataset entry from contribution #${ISSUE_NUMBER}" \
+              --body "$pr_body"
+          )"
+
+          if ! gh pr merge "$pr_url" --repo "$REPO" --auto --squash --delete-branch; then
+            failure_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge could not be enabled. Check that repository auto-merge is enabled and that the GitHub App has pull request write access.' "$target" "$pr_url")"
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$failure_body"
+            exit 1
+          fi
+
+          success_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge is enabled. The pull request will merge after required checks pass.' "$target" "$pr_url")"
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$success_body"

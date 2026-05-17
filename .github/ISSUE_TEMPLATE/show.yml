@@ -1,6 +1,6 @@
 name: Contribute show metadata
 description: Submit public art and theme links for a show.
-title: "[Show]: "
+title: "[Show]: Title (Year)"
 labels: ["contribution", "show"]
 
 body:

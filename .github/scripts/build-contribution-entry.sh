@@ -143,9 +143,10 @@ if ! jq -n \
       },
       theme: {
         youtube_id: (if $youtube == "" then null else $youtube end)
-      },
-      seasons: $seasons
-    }' > "${output_root}/${target}"; then
+      }
+    }
+    + if $media_type == "tv" then { seasons: $seasons } else {} end
+    ' > "${output_root}/${target}"; then
   rm -f "${output_root}/${target}"
   fail "Submitted fields could not be converted into dataset JSON. Check numeric year and mapping fields."
 fi

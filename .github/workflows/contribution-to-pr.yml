@@ -224,6 +224,11 @@ jobs:
             fail "$validation_output"
           fi
 
+          if ! identity_output="$(bash .github/scripts/validate-dataset-identities.sh 2>&1)"; then
+            rm -f "$target"
+            fail "$identity_output"
+          fi
+
           branch="contribution/issue-${ISSUE_NUMBER}"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
             fail "Contribution branch already exists: \`${branch}\`. Please review the existing branch or pull request."

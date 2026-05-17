@@ -43,13 +43,13 @@ body:
     id: poster_url
     attributes:
       label: Poster URL
-      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com/api/assets, artworks.thetvdb.com or metadata-static.plex.tv.
+      description: HTTPS JPG/JPEG/PNG image URL from image.tmdb.org, assets.fanart.tv, theposterdb.com/api/assets/, artworks.thetvdb.com or metadata-static.plex.tv.
 
   - type: input
     id: background_url
     attributes:
       label: Background URL
-      description: HTTPS URL from image.tmdb.org, assets.fanart.tv, theposterdb.com/api/assets, artworks.thetvdb.com or metadata-static.plex.tv.
+      description: HTTPS JPG/JPEG/PNG image URL from image.tmdb.org, assets.fanart.tv, theposterdb.com/api/assets/, artworks.thetvdb.com or metadata-static.plex.tv.
 
   - type: input
     id: youtube_id

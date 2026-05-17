@@ -21,6 +21,8 @@ jobs:
 
       - name: Validate contribution changes
         shell: bash
+        env:
+          BOT_LOGIN: lumieredb-bot[bot]
         run: |
           set -euo pipefail
 
@@ -42,16 +44,32 @@ jobs:
             exit 1
           fi
 
-          if [ "${{ github.event_name }}" = "pull_request" ] && [[ "${{ github.head_ref }}" == contribution/* ]]; then
+          dataset_files="$(printf '%s\n' "$changed_files" | grep -E '^data/.+\.json$' | sort || true)"
+
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "$dataset_files" ]; then
+            if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+              echo "Dataset changes must come from an internal LumiereDB bot branch."
+              exit 1
+            fi
+
+            if [[ "${{ github.head_ref }}" != contribution/issue-* ]]; then
+              echo "Dataset changes must come from a contribution/issue-* branch."
+              exit 1
+            fi
+
+            if [ "${{ github.event.pull_request.user.login }}" != "$BOT_LOGIN" ]; then
+              echo "Dataset changes must be opened by ${BOT_LOGIN}."
+              echo "Actual PR author: ${{ github.event.pull_request.user.login }}"
+              exit 1
+            fi
+
             non_dataset_files="$(printf '%s\n' "$changed_files" | grep -Ev '^data/.+\.json$' || true)"
             if [ -n "$non_dataset_files" ]; then
-              echo "Only dataset JSON files may change in contribution pull requests:"
+              echo "Bot contribution pull requests may only change dataset JSON files:"
               echo "$non_dataset_files"
               exit 1
             fi
           fi
-
-          dataset_files="$(printf '%s\n' "$changed_files" | grep -E '^data/.+\.json$' | sort || true)"
 
           if [ -z "$dataset_files" ]; then
             echo "No dataset files changed"

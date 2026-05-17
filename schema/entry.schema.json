@@ -10,8 +10,37 @@
     "year",
     "external_ids",
     "art",
-    "theme",
-    "seasons"
+    "theme"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "media_type": {
+            "const": "tv"
+          }
+        },
+        "required": ["media_type"]
+      },
+      "then": {
+        "required": ["seasons"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "media_type": {
+            "const": "movie"
+          }
+        },
+        "required": ["media_type"]
+      },
+      "then": {
+        "not": {
+          "required": ["seasons"]
+        }
+      }
+    }
   ],
   "properties": {
     "media_type": {

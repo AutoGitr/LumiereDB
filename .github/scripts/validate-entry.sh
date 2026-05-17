@@ -124,8 +124,16 @@ jq -e '
     (.url | type == "string" and length > 0) and
     (.license | type == "string" and length > 0);
 
-  ((keys_unsorted | sort) == ["art","external_ids","media_type","seasons","theme","title","year"] or
-   (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","sources","theme","title","year"]) and
+  (
+    (.media_type == "movie" and (
+      (keys_unsorted | sort) == ["art","external_ids","media_type","theme","title","year"] or
+      (keys_unsorted | sort) == ["art","external_ids","media_type","sources","theme","title","year"]
+    )) or
+    (.media_type == "tv" and (
+      (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","theme","title","year"] or
+      (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","sources","theme","title","year"]
+    ))
+  ) and
   (.media_type == "movie" or .media_type == "tv") and
   (.title | type == "string" and length > 0 and length <= 200) and
   (.year | year_value) and
@@ -141,8 +149,10 @@ jq -e '
   (.theme | type == "object") and
   (.theme | (keys_unsorted | sort) == ["youtube_id"]) and
   (.theme.youtube_id | optional_youtube) and
-  (.seasons | type == "array") and
-  all(.seasons[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0)) and
+  (.media_type == "movie" or (
+    .seasons | type == "array" and
+    all(.[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0))
+  )) and
   ((has("sources") | not) or (.sources | type == "array" and length > 0 and all(.[]; source_object)))
 ' "$file" >/dev/null || fail "entry does not match schema shape"
 

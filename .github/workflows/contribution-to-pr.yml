@@ -1,9 +1,9 @@
 name: Contribution to Pull Request
-run-name: "Contribution #${{ github.event.issue.number }} accepted by @${{ github.actor }}"
+run-name: "Contribution #${{ github.event.issue.number }} approved by @${{ github.actor }}"
 
 on:
-  issues:
-    types: [labeled]
+  issue_comment:
+    types: [created]
 
 permissions: {}
 
@@ -12,28 +12,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  create-contribution-pr:
+  approve-gate:
     if: |
-      github.event.label.name == 'accepted' &&
+      !github.event.issue.pull_request &&
       contains(github.event.issue.labels.*.name, 'contribution')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       issues: write
-      pull-requests: write
+    outputs:
+      approved: ${{ steps.gate.outputs.approved }}
 
     steps:
-      - name: Check accepted-label permission
+      - name: Check approval command and permission
         id: gate
         env:
           ACTOR: ${{ github.actor }}
+          COMMAND_BODY: ${{ github.event.comment.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          LABEL_NAME: ${{ github.event.label.name }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+
+          command_body="$(
+            printf '%s' "$COMMAND_BODY" \
+              | tr -d '\r' \
+              | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+          )"
+
+          if [ "$command_body" != "@LumiereDB-bot approve" ]; then
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          labels="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')"
+
+          if ! echo "$labels" | grep -qx "contribution"; then
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+              --body "Ignoring approval command from @${ACTOR}: issue must have the \`contribution\` label."
+            exit 0
+          fi
+
+          if ! echo "$labels" | grep -Eqx "movie|show"; then
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
+              --body "Ignoring approval command from @${ACTOR}: issue must use the movie or show contribution form."
+            exit 0
+          fi
 
           actor_permission="$(
             gh api "repos/${REPO}/collaborators/${ACTOR}/permission" \
@@ -42,18 +69,26 @@ jobs:
 
           case "$actor_permission" in
             admin|maintain|write)
-              echo "allowed=true" >> "$GITHUB_OUTPUT"
+              echo "approved=true" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "allowed=false" >> "$GITHUB_OUTPUT"
-              gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "$LABEL_NAME" || true
+              echo "approved=false" >> "$GITHUB_OUTPUT"
               gh issue comment "$ISSUE_NUMBER" --repo "$REPO" \
-                --body "Ignoring \`${LABEL_NAME}\` from @${ACTOR}: owner or maintainer access is required to accept contributions."
+                --body "Ignoring approval command from @${ACTOR}: owner or maintainer access is required to approve contributions."
               ;;
           esac
 
+  create-contribution-pr:
+    needs: approve-gate
+    if: needs.approve-gate.outputs.approved == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
       - name: Generate bot token
-        if: steps.gate.outputs.allowed == 'true'
         id: bot-token
         uses: actions/create-github-app-token@v3.2.0
         with:
@@ -61,7 +96,6 @@ jobs:
           private-key: ${{ secrets.LUMIEREDB_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        if: steps.gate.outputs.allowed == 'true'
         uses: actions/checkout@v6.0.2
         with:
           ref: main
@@ -69,7 +103,6 @@ jobs:
           persist-credentials: true
 
       - name: Create contribution PR from issue
-        if: steps.gate.outputs.allowed == 'true'
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -246,7 +279,7 @@ jobs:
           git commit -m "Add dataset entry from contribution #${ISSUE_NUMBER}"
           git push origin "$branch"
 
-          pr_body="$(printf 'Closes #%s\n\nAdds `%s` from the accepted contribution.' "$ISSUE_NUMBER" "$target")"
+          pr_body="$(printf 'Closes #%s\n\nAdds `%s` from the approved contribution.' "$ISSUE_NUMBER" "$target")"
 
           pr_url="$(
             gh pr create \

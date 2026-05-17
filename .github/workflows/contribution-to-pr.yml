@@ -52,12 +52,20 @@ jobs:
               ;;
           esac
 
+      - name: Generate bot token
+        if: steps.gate.outputs.allowed == 'true'
+        id: bot-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LUMIEREDB_APP_ID }}
+          private-key: ${{ secrets.LUMIEREDB_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         if: steps.gate.outputs.allowed == 'true'
         uses: actions/checkout@v6.0.2
         with:
           ref: main
-          token: ${{ secrets.LUMIEREDB_BOT_TOKEN }}
+          token: ${{ steps.bot-token.outputs.token }}
           persist-credentials: true
 
       - name: Create contribution PR from issue
@@ -67,7 +75,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.LUMIEREDB_BOT_TOKEN }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -245,7 +253,7 @@ jobs:
           )"
 
           if ! gh pr merge "$pr_url" --repo "$REPO" --auto --squash --delete-branch; then
-            failure_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge could not be enabled. Check that repository auto-merge is enabled and that the bot token has pull request write access.' "$target" "$pr_url")"
+            failure_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge could not be enabled. Check that repository auto-merge is enabled and that the GitHub App has pull request write access.' "$target" "$pr_url")"
             gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$failure_body"
             exit 1
           fi

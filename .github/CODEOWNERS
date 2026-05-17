@@ -1,2 +1,6 @@
-# Require owner to review everything
-* @AutoGitr
+.github/** @AutoGitr
+licenses/** @AutoGitr
+schema/** @AutoGitr
+.gitignore @AutoGitr
+*.md @AutoGitr
+LICENSE @AutoGitr

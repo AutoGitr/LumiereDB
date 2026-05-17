@@ -2,11 +2,9 @@
 * @AutoGitr
 
 # Explicitly protect automation and issue templates
-.github/workflows/* @AutoGitr
-.github/ISSUE_TEMPLATE/* @AutoGitr
-.github/scripts/* @AutoGitr
-schema/* @AutoGitr
-
-# Explicitly protect dataset entries
-data/* @AutoGitr
-data/**/* @AutoGitr
+.github/workflows/** @AutoGitr
+.github/scripts/** @AutoGitr
+.github/ISSUE_TEMPLATE/** @AutoGitr
+schema/** @AutoGitr
+bot_commands.md @AutoGitr
+licenses/** @AutoGitr

@@ -1,0 +1,17 @@
+{
+  "media_type": "movie",
+  "title": "A Clockwork Orange",
+  "year": 1971,
+  "external_ids": {
+    "tmdb": "185",
+    "tvdb": "641",
+    "imdb": "tt0066921"
+  },
+  "art": {
+    "poster_url": "https://image.tmdb.org/t/p/original/mDXkPY0EbyrhOlRAX5np9ywg4Si.jpg",
+    "background_url": "https://image.tmdb.org/t/p/original/a4xb2R1u4i1YO9EmfSD1P7DjTKZ.jpg"
+  },
+  "theme": {
+    "youtube_id": "Yd8-73EvIeg"
+  }
+}

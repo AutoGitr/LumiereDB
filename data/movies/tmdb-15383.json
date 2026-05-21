@@ -1,0 +1,17 @@
+{
+  "media_type": "movie",
+  "title": "Army of Shadows",
+  "year": 1969,
+  "external_ids": {
+    "tmdb": "15383",
+    "tvdb": "9347",
+    "imdb": "tt0064040"
+  },
+  "art": {
+    "poster_url": "https://image.tmdb.org/t/p/original/iVkgOdv87sQgNPb7URePF6b7Nry.jpg",
+    "background_url": "https://image.tmdb.org/t/p/original/f8NNC7BFIYbuv9Fix3x3ZYcftAV.jpg"
+  },
+  "theme": {
+    "youtube_id": "5WHqX8ht32Y"
+  }
+}

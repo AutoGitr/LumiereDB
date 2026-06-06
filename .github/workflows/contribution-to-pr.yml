@@ -96,7 +96,7 @@ jobs:
           private-key: ${{ secrets.LUMIEREDB_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v6.0.3
         with:
           ref: main
           token: ${{ steps.bot-token.outputs.token }}

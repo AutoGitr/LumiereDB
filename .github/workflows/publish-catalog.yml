@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout catalog source
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.0
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

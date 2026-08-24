@@ -1,0 +1,23 @@
+{
+  "media_type": "tv",
+  "title": "Apocalypse: Hitler Takes on the East",
+  "year": 2021,
+  "external_ids": {
+    "tmdb": "286449",
+    "tvdb": "411287",
+    "imdb": "tt15524930"
+  },
+  "art": {
+    "poster_url": "https://image.tmdb.org/t/p/original/mnlfxYXxFDavsYecKDCewMUvGXo.jpg",
+    "background_url": "https://image.tmdb.org/t/p/original/q3SOEXNl07Lw19e2gfGBQVDWuqj.jpg"
+  },
+  "theme": {
+    "youtube_id": null
+  },
+  "seasons": [
+    {
+      "season_number": 1,
+      "poster_url": "https://theposterdb.com/api/assets/709903"
+    }
+  ]
+}

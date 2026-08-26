@@ -62,5 +62,5 @@ body:
     id: season_posters
     attributes:
       label: Season posters
-      description: One HTTPS JPG/JPEG/PNG image URL per line, format season_number=url. Use theposterdb.com/api/assets/ for ThePosterDB links.
+      description: One HTTPS JPG/JPEG/PNG image URL per line, format season_num=url. Use theposterdb.com/api/assets/ for ThePosterDB links.
       placeholder: 1=https://image.tmdb.org/t/p/original/example.jpg

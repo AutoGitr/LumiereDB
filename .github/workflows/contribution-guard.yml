@@ -19,9 +19,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install entry schema validator
+      - name: Check the entry validator
         shell: bash
-        run: pipx install check-jsonschema==0.38.0
+        run: bash .github/scripts/test-entry-shape.sh
 
       - name: Validate contribution changes
         shell: bash

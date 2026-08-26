@@ -25,10 +25,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Install entry schema validator
-        shell: bash
-        run: pipx install check-jsonschema==0.38.0
-
       - name: Build and comment preview
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}

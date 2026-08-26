@@ -9,6 +9,8 @@ set -euo pipefail
 file="${1:?usage: validate-entry.sh data/path.json}"
 schema="${2:-schema/entry.schema.json}"
 
+shape_program="$(dirname "${BASH_SOURCE[0]}")/entry-shape.jq"
+
 fail() {
   echo "Validation failed for ${file}: $*" >&2
   exit 1
@@ -109,7 +111,14 @@ validate_art_url() {
 [ -f "$file" ] || fail "file does not exist"
 [ -f "$schema" ] || fail "schema file does not exist: ${schema}"
 
-check-jsonschema --schemafile "$schema" "$file" || fail "entry does not match ${schema}"
+jq empty "$schema" 2>/dev/null || fail "schema is not valid JSON: ${schema}"
+jq empty "$file" 2>/dev/null || fail "entry is not valid JSON"
+
+problems="$(jq -r --slurpfile schema "$schema" -f "$shape_program" "$file")"
+if [ -n "$problems" ]; then
+  printf '%s\n' "$problems" | sed 's/^/  /' >&2
+  fail "entry does not match ${schema}"
+fi
 
 relative="${file#./}"
 media_type="$(jq -r '.media_type' "$file")"

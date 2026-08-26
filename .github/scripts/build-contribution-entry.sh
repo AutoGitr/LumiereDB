@@ -40,11 +40,11 @@ clean_single_line() {
 if grep -qx "movie" "$labels_file"; then
   media_type="movie"
 elif grep -qx "show" "$labels_file"; then
-  media_type="tv"
+  media_type="show"
 elif printf '%s' "$issue_title" | grep -q '^\[Movie\]:'; then
   media_type="movie"
 elif printf '%s' "$issue_title" | grep -q '^\[Show\]:'; then
-  media_type="tv"
+  media_type="show"
 else
   fail "Issue must use the movie or show contribution form."
 fi
@@ -74,30 +74,24 @@ if [ -n "$imdb_id" ] && ! printf '%s' "$imdb_id" | grep -Eq '^tt[0-9]+$'; then
 fi
 
 if [ "$media_type" = "movie" ]; then
-  mkdir -p "${output_root}/data/movies"
-
-  if [ -n "$tmdb_id" ]; then
-    target="data/movies/tmdb-${tmdb_id}.json"
-  elif [ -n "$tvdb_id" ]; then
-    target="data/movies/tvdb-${tvdb_id}.json"
-  elif [ -n "$imdb_id" ]; then
-    target="data/movies/imdb-${imdb_id}.json"
-  else
-    fail "Movie contributions need a TMDB, TVDB, or IMDb ID."
-  fi
+  folder="data/movies"
+  candidates=("tmdb:$tmdb_id" "tvdb:$tvdb_id" "imdb:$imdb_id")
 else
-  mkdir -p "${output_root}/data/tv"
-
-  if [ -n "$tvdb_id" ]; then
-    target="data/tv/tvdb-${tvdb_id}.json"
-  elif [ -n "$tmdb_id" ]; then
-    target="data/tv/tmdb-${tmdb_id}.json"
-  elif [ -n "$imdb_id" ]; then
-    target="data/tv/imdb-${imdb_id}.json"
-  else
-    fail "Show contributions need a TVDB, TMDB, or IMDb ID."
-  fi
+  folder="data/shows"
+  candidates=("tvdb:$tvdb_id" "tmdb:$tmdb_id" "imdb:$imdb_id")
 fi
+
+target=""
+for candidate in "${candidates[@]}"; do
+  value="${candidate#*:}"
+  [ -n "$value" ] || continue
+  target="${folder}/${candidate%%:*}-${value}.json"
+  break
+done
+
+[ -n "$target" ] || fail "${media_type} contributions need a TMDB, TVDB, or IMDb ID."
+
+mkdir -p "${output_root}/${folder}"
 
 if [ -e "${output_root}/${target}" ]; then
   fail "Dataset file already exists on main: \`${target}\`. Please update it manually."
@@ -108,44 +102,40 @@ seasons_json="$(
     split("\n")
     | map(select(length > 0 and contains("=")))
     | map(
-        capture("^(?<season_number>[0-9]+)=(?<poster_url>.+)$")
+        capture("^(?<season_num>[0-9]+)=(?<poster_url>.+)$")
         | {
-            season_number: (.season_number | tonumber),
+            season_num: (.season_num | tonumber),
             poster_url
           }
       )
   '
-)" || fail "Season posters must use season_number=url lines."
+)" || fail "Season posters must use season_num=url lines."
 
 if ! jq -n \
     --arg media_type "$media_type" \
     --arg title "$title" \
     --arg year "$year" \
-    --arg tmdb "$tmdb_id" \
-    --arg tvdb "$tvdb_id" \
-    --arg imdb "$imdb_id" \
-    --arg poster "$poster_url" \
-    --arg background "$background_url" \
-    --arg youtube "$youtube_id" \
+    --arg tmdb_id "$tmdb_id" \
+    --arg tvdb_id "$tvdb_id" \
+    --arg imdb_id "$imdb_id" \
+    --arg poster_url "$poster_url" \
+    --arg background_url "$background_url" \
+    --arg youtube_id "$youtube_id" \
     --argjson seasons "$seasons_json" \
-    '{
+    'def number_or_null: if . == "" then null else tonumber end;
+     def string_or_null: if . == "" then null else . end;
+     {
       media_type: $media_type,
       title: $title,
-      year: (if $year == "" then null else ($year | tonumber) end),
-      external_ids: {
-        tmdb: (if $tmdb == "" then null else $tmdb end),
-        tvdb: (if $tvdb == "" then null else $tvdb end),
-        imdb: (if $imdb == "" then null else $imdb end)
-      },
-      art: {
-        poster_url: (if $poster == "" then null else $poster end),
-        background_url: (if $background == "" then null else $background end)
-      },
-      theme: {
-        youtube_id: (if $youtube == "" then null else $youtube end)
-      }
+      year: ($year | number_or_null),
+      tmdb_id: ($tmdb_id | number_or_null),
+      tvdb_id: ($tvdb_id | number_or_null),
+      imdb_id: ($imdb_id | string_or_null),
+      poster_url: ($poster_url | string_or_null),
+      background_url: ($background_url | string_or_null),
+      youtube_id: ($youtube_id | string_or_null)
     }
-    + if $media_type == "tv" then { seasons: $seasons } else {} end
+    + if $media_type == "show" then { seasons: $seasons } else {} end
     ' > "${output_root}/${target}"; then
   rm -f "${output_root}/${target}"
   fail "Submitted fields could not be converted into dataset JSON. Check numeric year and mapping fields."

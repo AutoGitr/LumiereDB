@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Validates one dataset entry: its shape against the published JSON Schema, its
+# placement in the tree, and that every art URL it carries is a reachable image
+# from an allowlisted host. Duplicate identities across the whole dataset are
+# validate-dataset-identities.sh's job.
+
 file="${1:?usage: validate-entry.sh data/path.json}"
 schema="${2:-schema/entry.schema.json}"
 
@@ -75,17 +80,15 @@ validate_art_url() {
   fi
 
   content_type="$(
-    awk '
-      BEGIN { IGNORECASE = 1 }
-      /^content-type:/ {
-        value = $0
-        sub(/\r$/, "", value)
-        sub(/^[^:]*:[[:space:]]*/, "", value)
-        sub(/[;[:space:]].*$/, "", value)
-        content_type = tolower(value)
+    tr -d '\r' < "$headers" | awk '
+      { line = tolower($0) }
+      line ~ /^content-type:/ {
+        sub(/^content-type:[[:space:]]*/, "", line)
+        sub(/[;[:space:]].*$/, "", line)
+        content_type = line
       }
       END { print content_type }
-    ' "$headers"
+    '
   )"
 
   case "$content_type" in
@@ -106,88 +109,34 @@ validate_art_url() {
 [ -f "$file" ] || fail "file does not exist"
 [ -f "$schema" ] || fail "schema file does not exist: ${schema}"
 
-jq empty "$schema" >/dev/null || fail "schema is not valid JSON"
-jq empty "$file" >/dev/null || fail "entry is not valid JSON"
+check-jsonschema --schemafile "$schema" "$file" || fail "entry does not match ${schema}"
 
-jq -e '
-  def optional_string: . == null or type == "string";
-  def optional_digits: . == null or (type == "string" and test("^[0-9]+$"));
-  def optional_imdb: . == null or (type == "string" and test("^tt[0-9]+$"));
-  def optional_youtube: . == null or (type == "string" and test("^[A-Za-z0-9_-]{11}$"));
-  def integer: type == "number" and . == floor;
-  def nonnegative_integer: integer and . >= 0;
-  def year_value: . == null or (integer and . >= 1000 and . <= 9999);
-  def source_object:
-    type == "object" and
-    (keys_unsorted | sort) == ["license","name","url"] and
-    (.name | type == "string" and length > 0) and
-    (.url | type == "string" and length > 0) and
-    (.license | type == "string" and length > 0);
-
-  (
-    (.media_type == "movie" and (
-      (keys_unsorted | sort) == ["art","external_ids","media_type","theme","title","year"] or
-      (keys_unsorted | sort) == ["art","external_ids","media_type","sources","theme","title","year"]
-    )) or
-    (.media_type == "tv" and (
-      (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","theme","title","year"] or
-      (keys_unsorted | sort) == ["art","external_ids","media_type","seasons","sources","theme","title","year"]
-    ))
-  ) and
-  (.media_type == "movie" or .media_type == "tv") and
-  (.title | type == "string" and length > 0 and length <= 200) and
-  (.year | year_value) and
-  (.external_ids | type == "object") and
-  (.external_ids | (keys_unsorted | sort) == ["imdb","tmdb","tvdb"]) and
-  (.external_ids.tmdb | optional_digits) and
-  (.external_ids.tvdb | optional_digits) and
-  (.external_ids.imdb | optional_imdb) and
-  (.art | type == "object") and
-  (.art | (keys_unsorted | sort) == ["background_url","poster_url"]) and
-  (.art.poster_url | optional_string) and
-  (.art.background_url | optional_string) and
-  (.theme | type == "object") and
-  (.theme | (keys_unsorted | sort) == ["youtube_id"]) and
-  (.theme.youtube_id | optional_youtube) and
-  (.media_type == "movie" or (
-    .seasons | type == "array" and
-    all(.[]; type == "object" and (keys_unsorted | sort) == ["poster_url","season_number"] and (.season_number | nonnegative_integer) and (.poster_url | type == "string" and length > 0))
-  )) and
-  ((has("sources") | not) or (.sources | type == "array" and length > 0 and all(.[]; source_object)))
-' "$file" >/dev/null || fail "entry does not match schema shape"
-
+relative="${file#./}"
 media_type="$(jq -r '.media_type' "$file")"
-tmdb_id="$(jq -r '.external_ids.tmdb // ""' "$file")"
-tvdb_id="$(jq -r '.external_ids.tvdb // ""' "$file")"
-imdb_id="$(jq -r '.external_ids.imdb // ""' "$file")"
 
-case "${file}:${media_type}" in
-  data/movies/*.json:movie|data/tv/*.json:tv) ;;
-  *) fail "file path does not match media_type" ;;
+case "$media_type" in
+  movie) folder="data/movies" ;;
+  show) folder="data/shows" ;;
+  *) fail "unknown media_type: ${media_type}" ;;
 esac
 
-if [ "$media_type" = "movie" ] && ! [[ "$file" =~ ^data/movies/(tmdb-[0-9]+|tvdb-[0-9]+|imdb-tt[0-9]+)\.json$ ]]; then
-  fail "movie filename must be tmdb-<digits>.json, tvdb-<digits>.json, or imdb-tt<digits>.json"
-fi
+[ "$(dirname "$relative")" = "$folder" ] || fail "a ${media_type} entry belongs in ${folder}/"
 
-if [ "$media_type" = "tv" ] && ! [[ "$file" =~ ^data/tv/(tvdb-[0-9]+|tmdb-[0-9]+|imdb-tt[0-9]+)\.json$ ]]; then
-  fail "TV filename must be tvdb-<digits>.json, tmdb-<digits>.json, or imdb-tt<digits>.json"
-fi
+stem="$(basename "$relative" .json)"
+case "$stem" in
+  tmdb-*) id_field="tmdb_id" ;;
+  tvdb-*) id_field="tvdb_id" ;;
+  imdb-*) id_field="imdb_id" ;;
+  *) fail "filename must be tmdb-<digits>.json, tvdb-<digits>.json, or imdb-tt<digits>.json" ;;
+esac
 
-if [ "$media_type" = "movie" ] && [ -z "$tmdb_id" ] && [ -z "$tvdb_id" ] && [ -z "$imdb_id" ]; then
-  fail "movie entries need a TMDB, TVDB, or IMDb ID"
-fi
+[[ "$stem" =~ ^(tmdb-[0-9]+|tvdb-[0-9]+|imdb-tt[0-9]+)$ ]] ||
+  fail "filename must be tmdb-<digits>.json, tvdb-<digits>.json, or imdb-tt<digits>.json"
 
-if [ "$media_type" = "tv" ] && [ -z "$tvdb_id" ] && [ -z "$tmdb_id" ] && [ -z "$imdb_id" ]; then
-  fail "TV entries need a TVDB, TMDB, or IMDb ID"
-fi
+entry_id="$(jq -r --arg field "$id_field" '.[$field] | if . == null then "" else tostring end' "$file")"
+[ "$entry_id" = "${stem#*-}" ] || fail "filename says ${stem} but ${id_field} is ${entry_id:-null}"
 
-jq -r '
-  [
-    .art.poster_url,
-    .art.background_url,
-    (.seasons[]?.poster_url)
-  ] | .[] | select(. != null and . != "")
-' "$file" | while IFS= read -r url; do
-  validate_art_url "$url"
-done
+jq -r '[.poster_url, .background_url, (.seasons[]?.poster_url)] | .[] | select(. != null)' "$file" |
+  while IFS= read -r url; do
+    validate_art_url "$url"
+  done

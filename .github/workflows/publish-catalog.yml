@@ -39,22 +39,22 @@ jobs:
 
           if [ "${#files[@]}" -eq 0 ]; then
             jq -n '{
-              schema_version: 1,
+              schema_version: 2,
               generated_at: now | todateiso8601,
               third_party_notices: "THIRD_PARTY_NOTICES.md",
               entries: []
             }' > public/catalog.json
           else
             jq -s '{
-              schema_version: 1,
+              schema_version: 2,
               generated_at: now | todateiso8601,
               third_party_notices: "THIRD_PARTY_NOTICES.md",
               entries: sort_by(
                 .media_type,
                 .title,
-                (.external_ids.tvdb // ""),
-                (.external_ids.tmdb // ""),
-                (.external_ids.imdb // "")
+                (.tvdb_id // 0),
+                (.tmdb_id // 0),
+                (.imdb_id // "")
               )
             }' "${files[@]}" > public/catalog.json
           fi

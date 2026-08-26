@@ -25,6 +25,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Install entry schema validator
+        shell: bash
+        run: pipx install check-jsonschema==0.38.0
+
       - name: Build and comment preview
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -74,13 +78,13 @@ jobs:
               echo "Identifiers:"
 
               media_type="$(jq -r '.media_type' "$target")"
-              tmdb_id="$(jq -r '.external_ids.tmdb // ""' "$target")"
-              tvdb_id="$(jq -r '.external_ids.tvdb // ""' "$target")"
-              imdb_id="$(jq -r '.external_ids.imdb // ""' "$target")"
-              youtube_id="$(jq -r '.theme.youtube_id // ""' "$target")"
+              tmdb_id="$(jq -r '.tmdb_id // ""' "$target")"
+              tvdb_id="$(jq -r '.tvdb_id // ""' "$target")"
+              imdb_id="$(jq -r '.imdb_id // ""' "$target")"
+              youtube_id="$(jq -r '.youtube_id // ""' "$target")"
 
               if [ -n "$tmdb_id" ]; then
-                if [ "$media_type" = "tv" ]; then
+                if [ "$media_type" = "show" ]; then
                   echo "- TMDB: [$tmdb_id](https://www.themoviedb.org/tv/$tmdb_id)"
                 else
                   echo "- TMDB: [$tmdb_id](https://www.themoviedb.org/movie/$tmdb_id)"
@@ -88,7 +92,7 @@ jobs:
               fi
 
               if [ -n "$tvdb_id" ]; then
-                if [ "$media_type" = "tv" ]; then
+                if [ "$media_type" = "show" ]; then
                   echo "- TVDB: [$tvdb_id](https://thetvdb.com/dereferrer/series/$tvdb_id)"
                 else
                   echo "- TVDB: [$tvdb_id](https://thetvdb.com/dereferrer/movie/$tvdb_id)"

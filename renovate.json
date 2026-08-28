@@ -28,7 +28,7 @@
       "addLabels": ["ci"]
     },
     {
-      "matchUpdateTypes": ["patch", "digest", "pinDigest"],
+      "matchUpdateTypes": ["pin", "patch", "digest", "pinDigest"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true

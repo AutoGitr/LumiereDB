@@ -2,5 +2,35 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "pinDigests": true,
+  "dependencyDashboard": true,
+  "rangeStrategy": "pin",
+  "minimumReleaseAge": "5 days",
+  "labels": [
+    "ci",
+    "dependencies"
+  ],
+  "schedule": ["before 5:00am on monday"],
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "minimumReleaseAge": null,
+    "schedule": ["at any time"],
+    "vulnerabilityFixStrategy": "lowest"
+  },
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions Updates",
+      "matchUpdateTypes": ["minor", "patch"]
+    },
+    {
+      "matchUpdateTypes": ["patch", "digest", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
   ]
 }

@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
   "pinDigests": true,
   "dependencyDashboard": true,
@@ -24,7 +25,7 @@
     {
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions Updates",
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": ["minor"],
       "addLabels": ["ci"]
     },
     {

@@ -6,12 +6,12 @@
   "pinDigests": true,
   "dependencyDashboard": true,
   "rangeStrategy": "pin",
-  "minimumReleaseAge": "5 days",
-  "labels": [
-    "ci",
-    "dependencies"
-  ],
-  "schedule": ["before 5:00am on monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "minimumReleaseAge": "3 days",
+  "schedule": ["0 5 * * 2"],
+  "internalChecksFilter": "strict",
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,

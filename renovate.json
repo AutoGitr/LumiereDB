@@ -24,7 +24,8 @@
     {
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions Updates",
-      "matchUpdateTypes": ["minor", "patch"]
+      "matchUpdateTypes": ["minor", "patch"],
+      "addLabels": ["ci"]
     },
     {
       "matchUpdateTypes": ["patch", "digest", "pinDigest"],

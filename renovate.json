@@ -2,7 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    "helpers:pinGitHubActionDigests"
+    ":configMigration"
   ],
   "pinDigests": true,
   "dependencyDashboard": true,
@@ -32,7 +32,8 @@
       "matchUpdateTypes": ["pin", "patch", "digest", "pinDigest"],
       "automerge": true,
       "automergeType": "pr",
-      "platformAutomerge": true
+      "platformAutomerge": true,
+      "schedule": ["at any time"]
     },
     {
       "matchUpdateTypes": ["pin", "digest", "pinDigest"],

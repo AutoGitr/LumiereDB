@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/AutoGitr/LumiereDB/main/schema/entry.schema.json",
   "title": "LumiereDB entry",
-  "description": "One dataset entry. Every field is named and typed exactly as Lumiere names and types it, so the app stores what it downloads without renaming or converting anything.",
+  "description": "One movie or show in the version 2 LumiereDB catalog.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,6 +17,13 @@
     "youtube_id"
   ],
   "allOf": [
+    {
+      "anyOf": [
+        {"properties": {"tmdb_id": {"type": "integer"}}},
+        {"properties": {"tvdb_id": {"type": "integer"}}},
+        {"properties": {"imdb_id": {"type": "string"}}}
+      ]
+    },
     {
       "if": {
         "properties": {
@@ -53,7 +60,8 @@
     "title": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 200
+      "maxLength": 200,
+      "pattern": "\\S"
     },
     "year": {
       "type": ["integer", "null"],
@@ -62,11 +70,13 @@
     },
     "tmdb_id": {
       "type": ["integer", "null"],
-      "minimum": 1
+      "minimum": 1,
+      "maximum": 9223372036854775807
     },
     "tvdb_id": {
       "type": ["integer", "null"],
-      "minimum": 1
+      "minimum": 1,
+      "maximum": 9223372036854775807
     },
     "imdb_id": {
       "type": ["string", "null"],
@@ -74,11 +84,11 @@
     },
     "poster_url": {
       "type": ["string", "null"],
-      "minLength": 1
+      "pattern": "^https://[^\\s/?#@]+/[^\\s]*$"
     },
     "background_url": {
       "type": ["string", "null"],
-      "minLength": 1
+      "pattern": "^https://[^\\s/?#@]+/[^\\s]*$"
     },
     "youtube_id": {
       "type": ["string", "null"],
@@ -86,6 +96,7 @@
     },
     "seasons": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -93,11 +104,12 @@
         "properties": {
           "season_num": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9223372036854775807
           },
           "poster_url": {
             "type": "string",
-            "minLength": 1
+            "pattern": "^https://[^\\s/?#@]+/[^\\s]*$"
           }
         }
       }
@@ -112,15 +124,15 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "pattern": "\\S"
           },
           "url": {
             "type": "string",
-            "minLength": 1
+            "pattern": "^https?://[^\\s/?#@]+/[^\\s]*$"
           },
           "license": {
             "type": "string",
-            "minLength": 1
+            "pattern": "\\S"
           }
         }
       }

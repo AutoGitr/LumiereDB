@@ -19,14 +19,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check the entry validator
-        shell: bash
-        run: bash .github/scripts/test-entry-shape.sh
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.14.7"
+
+      - name: Install validator
+        run: python -m pip install -r .github/scripts/requirements.txt
+
+      - name: Test and validate the complete dataset
+        run: |
+          python -m unittest discover -s .github/scripts -p 'test_*.py'
+          python .github/scripts/catalog.py validate
 
       - name: Validate contribution changes
         shell: bash
         env:
           BOT_LOGIN: lumieredb-bot[bot]
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
 
@@ -56,7 +66,7 @@ jobs:
               exit 1
             fi
 
-            if [[ "${{ github.head_ref }}" != contribution/issue-* ]]; then
+            if [[ "$HEAD_REF" != contribution/issue-* ]]; then
               echo "Dataset changes must come from a contribution/issue-* branch."
               exit 1
             fi
@@ -83,24 +93,6 @@ jobs:
 
             while IFS= read -r file; do
               [ -n "$file" ] || continue
-              bash .github/scripts/validate-entry.sh "$file"
+              python .github/scripts/catalog.py validate --check-urls --entry "$file"
             done <<< "$dataset_files"
           fi
-
-          if [ -d data ]; then
-            duplicate_filenames="$(
-              find data -name '*.json' -printf '%f\n' \
-                | sort \
-                | uniq -d
-            )"
-          else
-            duplicate_filenames=""
-          fi
-
-          if [ -n "$duplicate_filenames" ]; then
-            echo "Duplicate dataset filenames:"
-            echo "$duplicate_filenames"
-            exit 1
-          fi
-
-          bash .github/scripts/validate-dataset-identities.sh

@@ -80,10 +80,9 @@ done < <(find "${root}/data" -name '*.json' | sort)
 note "checked $(find "${root}/data" -name '*.json' | wc -l | tr -d ' ') entries"
 
 echo "Malformed entries are rejected:"
-rejects "the media type the dataset used to publish" '.media_type = "tv"'
-rejects "the nesting the dataset used to publish" '.external_ids = {"tmdb": 1}'
-rejects "the season key the dataset used to publish" \
-  '.seasons = [{"season_number": 1, "poster_url": "https://image.tmdb.org/a.jpg"}]'
+rejects "an unsupported media type" '.media_type = "unsupported"'
+rejects "a season without a number" \
+  '.seasons = [{"poster_url": "https://image.tmdb.org/a.jpg"}]'
 rejects "an ID sent as a string" '.tmdb_id = "1396"'
 rejects "a year sent as a string" '.year = "2008"'
 rejects "a zero ID" '.tvdb_id = 0'

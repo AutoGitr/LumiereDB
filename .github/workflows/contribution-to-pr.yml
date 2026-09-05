@@ -160,7 +160,7 @@ jobs:
           git commit -m "Add dataset entry from contribution #${ISSUE_NUMBER}"
           git push origin "$branch"
 
-          pr_body="$(printf 'Closes #%s\n\nAdds `%s` from the approved contribution.' "$ISSUE_NUMBER" "$target")"
+          printf -v pr_body "Closes #%s\n\nAdds \`%s\` from the approved contribution." "$ISSUE_NUMBER" "$target"
 
           pr_url="$(
             gh pr create \
@@ -172,10 +172,10 @@ jobs:
           )"
 
           if ! gh pr merge "$pr_url" --repo "$REPO" --auto --squash --delete-branch; then
-            failure_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge could not be enabled. Check that repository auto-merge is enabled and that the GitHub App has pull request write access.' "$target" "$pr_url")"
+            printf -v failure_body "Created pull request for \`%s\`: %s\n\nAuto-merge could not be enabled. Check that repository auto-merge is enabled and that the GitHub App has pull request write access." "$target" "$pr_url"
             gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$failure_body"
             exit 1
           fi
 
-          success_body="$(printf 'Created pull request for `%s`: %s\n\nAuto-merge is enabled. The pull request will merge after required checks pass.' "$target" "$pr_url")"
+          printf -v success_body "Created pull request for \`%s\`: %s\n\nAuto-merge is enabled. The pull request will merge after required checks pass." "$target" "$pr_url"
           gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$success_body"

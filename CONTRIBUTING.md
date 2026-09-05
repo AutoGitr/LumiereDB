@@ -1,1 +1,91 @@
+# Contributing to LumiereDB
 
+LumiereDB accepts curated selections, not arbitrary media uploads. The repository
+stores metadata, image URLs, and YouTube IDs; never attach copyrighted image or
+audio files to a contribution.
+
+## Selection criteria
+
+- Use stable external IDs for the exact movie or show.
+- Prefer high-resolution, correctly framed artwork from the allowlisted providers.
+- Posters should identify the title clearly and avoid unrelated promotional text.
+- Backgrounds should work as wide artwork without critical content at the edges.
+- A show's season poster set should be visually coherent.
+- Theme selections should identify the work, contain no unrelated commentary, and
+  normally run between 30 seconds and five minutes.
+- Do not submit malicious, deceptive, explicit, hateful, or rights-infringing
+  destinations.
+
+Review is curatorial. A structurally valid contribution may still be declined when
+the selection is low quality, duplicative, misleading, or inconsistent with an
+existing set.
+
+## Submit a selection
+
+Use the repository contribution issue form. Supply the media type, title, year,
+at least one external ID, desired artwork URLs, optional season posters, and an
+11-character YouTube ID where applicable. A moderator can ask the constrained bot
+to create a pull request after reviewing the issue.
+
+Dataset JSON changes are accepted only from that bot workflow. This keeps filenames,
+schema validation, and the relationship between an issue and its pull request
+consistent. Changes to schemas, validators, workflows, documentation, notices, or
+licenses use an ordinary maintainer pull request.
+
+## Attribution
+
+If values are derived from another catalog, database, list, or authored
+publication, include a source entry:
+
+```json
+{
+  "name": "Source project",
+  "url": "https://example.org/source-record",
+  "license": "SPDX identifier or exact license name"
+}
+```
+
+The URL must be a public HTTPS page, remain valid through redirects, and describe
+the derivation closely enough to audit. The stated license must permit the reuse.
+Do not use a search-result page as provenance. An artwork provider URL is still
+validated separately and does not by itself claim ownership of the artwork.
+
+By contributing, you confirm that the submitted metadata is accurate to the best
+of your knowledge and that any derived data is compatible with its stated license.
+Contributions are distributed under this repository's license together with the
+notices that apply to their source.
+
+## Validate changes
+
+Use Python 3.14.7:
+
+```sh
+python -m pip install -r .github/scripts/requirements.txt
+ruff check .github/scripts
+ruff format --check .github/scripts
+python -m unittest discover -s .github/scripts -p 'test_*.py'
+python .github/scripts/catalog.py validate
+python .github/scripts/catalog.py validate --check-urls --entry data/movies/tmdb-123.json
+```
+
+The pull-request guard validates the complete dataset and performs live checks for
+changed entries. The publication workflow repeats all tests and live checks across
+the complete catalog; no artifact is deployed after a partial failure.
+
+## Corrections and removal requests
+
+Open an issue and identify the entry, field, reason, and supporting source. Use the
+same process for dead links, changed upstream content, incorrect IDs, attribution
+or licensing concerns, and removal requests from a rights holder. Do not include
+private personal information.
+
+Maintainers preserve the discussion and corrective commit in Git history. The live
+catalog is rebuilt from corrected `main`; it does not continue serving the removed
+entry. Security-sensitive reports follow `.github/SECURITY.md`.
+
+## Contract changes
+
+Contract changes require coordinated Lumiere and LumiereDB pull requests. Change
+the canonical schema and Python contract here, update tests, regenerate Lumiere's
+bundled contract, and increment `schema_version` when compatibility changes. Do not
+add compatibility shims for catalog formats that were never publicly released.

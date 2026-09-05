@@ -262,6 +262,50 @@ class ArtworkTests(unittest.TestCase):
         entries = [movie(), movie(tmdb_id=2)]
         self.assertEqual(catalog.art_urls(entries), {movie()["poster_url"]})
 
+    @patch.object(
+        socket, "getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]
+    )
+    def test_source_destinations_require_public_https(self, lookup):
+        catalog.check_source_destination("https://example.com/source#selection")
+        self.assertEqual(lookup.call_count, 1)
+        for url in (
+            "http://example.com/source",
+            "https://user:password@example.com/source",
+            "https://example.com:8443/source",
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                catalog.check_source_destination(url)
+        lookup.return_value = [(2, 1, 6, "", ("127.0.0.1", 443))]
+        with self.assertRaises(ValueError):
+            catalog.check_source_destination("https://example.com/source")
+
+    @patch.object(catalog, "check_source_destination")
+    @patch.object(catalog, "build_opener")
+    def test_source_probe_validates_redirects_and_reads_one_byte(
+        self, opener, destination
+    ):
+        response = MagicMock()
+        opener.return_value.open.return_value.__enter__.return_value = response
+        catalog.check_source_url("https://example.com/source")
+        destination.assert_called_once_with("https://example.com/source")
+        response.read.assert_called_once_with(1)
+
+        destination.side_effect = ValueError("unsafe redirect")
+        with self.assertRaises(ValueError):
+            catalog.SourceRedirectHandler().redirect_request(
+                Request("https://example.com/source"),
+                None,
+                302,
+                "Found",
+                {},
+                "http://127.0.0.1/private",
+            )
+
+    def test_source_urls_are_deduplicated(self):
+        source = {"name": "Example", "url": "https://example.com/", "license": "MIT"}
+        entries = [movie(sources=[source]), movie(tmdb_id=2, sources=[source])]
+        self.assertEqual(catalog.source_urls(entries), {source["url"]})
+
 
 if __name__ == "__main__":
     unittest.main()

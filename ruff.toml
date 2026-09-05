@@ -1,0 +1,34 @@
+target-version = "py314"
+line-length = 88
+indent-width = 4
+
+[lint]
+select = [
+    "A",
+    "B",
+    "C4",
+    "C90",
+    "E",
+    "F",
+    "I",
+    "N",
+    "PERF",
+    "PTH",
+    "RUF",
+    "S",
+    "SIM",
+    "T20",
+    "TCH",
+    "UP",
+    "W",
+]
+ignore = ["S101"]
+
+[lint.mccabe]
+max-complexity = 12
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+docstring-code-format = true

@@ -13,13 +13,13 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import SplitResult, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "schema"))
 
-from contract import SCHEMA_VERSION, validate_catalog, validate_entries
+from contract import SCHEMA_VERSION, validate_catalog, validate_entries  # noqa: E402
 
 ART_HOSTS = {
     "image.tmdb.org",
@@ -60,19 +60,42 @@ def art_urls(entries: list[dict]) -> set[str]:
     }
 
 
-def check_art_destination(url: str) -> None:
-    parsed = urlsplit(url)
+def source_urls(entries: list[dict]) -> set[str]:
+    return {source["url"] for entry in entries for source in entry.get("sources", [])}
+
+
+def public_https_destination(
+    url: str, *, allowed_hosts: set[str] | None = None
+) -> SplitResult:
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("URL is malformed") from exc
+    host_allowed = allowed_hosts is None or parsed.hostname in allowed_hosts
     if (
         parsed.scheme != "https"
-        or parsed.hostname not in ART_HOSTS
-        or parsed.port not in (None, 443)
+        or parsed.hostname is None
+        or not host_allowed
+        or port not in (None, 443)
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.fragment
     ):
         raise ValueError(
-            "Artwork must use an allowlisted HTTPS image host without credentials"
+            "URL must use public HTTPS on an allowed host without credentials"
         )
+    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+    if not addresses or any(
+        not ipaddress.ip_address(row[4][0]).is_global for row in addresses
+    ):
+        raise ValueError("URL host does not resolve exclusively to public addresses")
+    return parsed
+
+
+def check_art_destination(url: str) -> None:
+    parsed = public_https_destination(url, allowed_hosts=ART_HOSTS)
+    if parsed.fragment:
+        raise ValueError("Artwork URL must not contain a fragment")
     if parsed.hostname in {
         "theposterdb.com",
         "www.theposterdb.com",
@@ -81,13 +104,10 @@ def check_art_destination(url: str) -> None:
     suffix = Path(parsed.path).suffix.lower()
     if suffix and suffix not in {".jpg", ".jpeg", ".png"}:
         raise ValueError("Artwork must be a JPEG or PNG")
-    addresses = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
-    if not addresses or any(
-        not ipaddress.ip_address(row[4][0]).is_global for row in addresses
-    ):
-        raise ValueError(
-            "Artwork host does not resolve exclusively to public addresses"
-        )
+
+
+def check_source_destination(url: str) -> None:
+    public_https_destination(url)
 
 
 class ArtRedirectHandler(HTTPRedirectHandler):
@@ -98,19 +118,39 @@ class ArtRedirectHandler(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+class SourceRedirectHandler(HTTPRedirectHandler):
+    max_redirections = 3
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_source_destination(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def check_art_url(url: str) -> None:
     check_art_destination(url)
-    request = Request(url, headers={"Range": "bytes=0-15", "User-Agent": "LumiereDB"})
+    request = Request(  # noqa: S310
+        url, headers={"Range": "bytes=0-15", "User-Agent": "LumiereDB"}
+    )
     with build_opener(ArtRedirectHandler()).open(request, timeout=20) as response:
         content_type = response.headers.get_content_type()
         signature = response.read(16)
     if not (
-        content_type in {"image/jpeg", "image/jpg"}
-        and signature.startswith(b"\xff\xd8\xff")
-        or content_type == "image/png"
-        and signature.startswith(b"\x89PNG\r\n\x1a\n")
+        (
+            content_type in {"image/jpeg", "image/jpg"}
+            and signature.startswith(b"\xff\xd8\xff")
+        )
+        or (content_type == "image/png" and signature.startswith(b"\x89PNG\r\n\x1a\n"))
     ):
         raise ValueError("Artwork response is not a JPEG or PNG image")
+
+
+def check_source_url(url: str) -> None:
+    check_source_destination(url)
+    request = Request(  # noqa: S310
+        url, headers={"Range": "bytes=0-0", "User-Agent": "LumiereDB"}
+    )
+    with build_opener(SourceRedirectHandler()).open(request, timeout=20) as response:
+        response.read(1)
 
 
 def build(output: Path, *, root: Path = ROOT, revision: str, generated_at: str) -> None:
@@ -177,6 +217,15 @@ def build(output: Path, *, root: Path = ROOT, revision: str, generated_at: str) 
     )
 
 
+def git_output(*args: str) -> str:
+    git = shutil.which("git")
+    if git is None:
+        raise OSError("git is required to build the catalog")
+    return subprocess.check_output(  # noqa: S603
+        [git, *args], cwd=ROOT, text=True
+    ).strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -199,27 +248,22 @@ def main() -> int:
             if args.check_urls:
                 for url in sorted(art_urls(entries)):
                     check_art_url(url)
+                for url in sorted(source_urls(entries)):
+                    check_source_url(url)
         else:
-            if subprocess.check_output(
-                ["git", "status", "--porcelain", "--untracked-files=all"],
-                cwd=ROOT,
-                text=True,
-            ).strip():
+            if git_output("status", "--porcelain", "--untracked-files=all"):
                 raise ValueError(
-                    "Build from a clean checkout so source_revision identifies the complete source"
+                    "Build from a clean checkout so source_revision identifies "
+                    "the complete source"
                 )
-            revision = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
-            ).strip()
-            timestamp = subprocess.check_output(
-                ["git", "show", "-s", "--format=%ct", "HEAD"], cwd=ROOT, text=True
-            ).strip()
+            revision = git_output("rev-parse", "HEAD")
+            timestamp = git_output("show", "-s", "--format=%ct", "HEAD")
             generated_at = datetime.fromtimestamp(int(timestamp), UTC).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
             )
             build(args.output, revision=revision, generated_at=generated_at)
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
-        print(f"Dataset validation failed: {exc}", file=sys.stderr)
+        print(f"Dataset validation failed: {exc}", file=sys.stderr)  # noqa: T201
         return 1
     return 0
 
